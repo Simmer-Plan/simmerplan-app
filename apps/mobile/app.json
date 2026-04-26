@@ -1,0 +1,24 @@
+{
+  "expo": {
+    "name": "Simmerplan",
+    "slug": "simmerplan",
+    "scheme": "simmerplan",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "ios": {
+      "bundleIdentifier": "com.simmerplan.app",
+      "associatedDomains": ["applinks:simmerplan.com"]
+    },
+    "android": {
+      "package": "com.simmerplan.app",
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [{ "scheme": "https", "host": "simmerplan.com", "pathPrefix": "/join" }],
+          "category": ["BROWSABLE", "DEFAULT"]
+        }
+      ]
+    }
+  }
+}
