@@ -1,0 +1,15 @@
+{
+  "name": "@simmerplan/scripts",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "scaffold:db": "tsx scaffold-db.ts"
+  },
+  "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.0.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.5.0"
+  }
+}

@@ -2,3 +2,4 @@ packages:
   - "apps/mobile"
   - "packages/types"
   - "services/api"
+  - "scripts"
