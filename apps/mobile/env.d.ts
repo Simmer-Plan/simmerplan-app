@@ -12,13 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Shared DynamoDB document client and table name.
+// Ambient globals available in the Expo/Hermes runtime.
 
-import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
-import { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';
+declare const process: {
+  env: {
+    EXPO_PUBLIC_API_URL?: string;
+    EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID?: string;
+    EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID?: string;
+  };
+};
 
-export const TABLE_NAME = process.env.DYNAMODB_TABLE ?? '';
-
-export const docClient = DynamoDBDocumentClient.from(new DynamoDBClient({}), {
-  marshallOptions: { removeUndefinedValues: true },
-});
+declare function atob(data: string): string;

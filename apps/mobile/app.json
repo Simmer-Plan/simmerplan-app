@@ -7,7 +7,9 @@
     "orientation": "portrait",
     "ios": {
       "bundleIdentifier": "com.simmerplan.app",
-      "associatedDomains": ["applinks:simmerplan.com"]
+      "associatedDomains": [
+        "applinks:simmerplan.com"
+      ]
     },
     "android": {
       "package": "com.simmerplan.app",
@@ -15,10 +17,22 @@
         {
           "action": "VIEW",
           "autoVerify": true,
-          "data": [{ "scheme": "https", "host": "simmerplan.com", "pathPrefix": "/join" }],
-          "category": ["BROWSABLE", "DEFAULT"]
+          "data": [
+            {
+              "scheme": "https",
+              "host": "simmerplan.com",
+              "pathPrefix": "/join"
+            }
+          ],
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
         }
       ]
-    }
+    },
+    "plugins": [
+      "@react-native-google-signin/google-signin"
+    ]
   }
 }

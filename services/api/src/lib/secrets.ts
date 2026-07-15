@@ -12,4 +12,31 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-export {};
+// Secrets Manager access with per-container caching. Secrets live at
+// simmerplan/<env>/<name> (see CLAUDE.md); values are never placed in env vars.
+
+import { GetSecretValueCommand, SecretsManagerClient } from '@aws-sdk/client-secrets-manager';
+
+const CACHE_TTL_MS = 5 * 60 * 1000;
+
+const client = new SecretsManagerClient({});
+const cache = new Map<string, { value: string; fetchedAt: number }>();
+
+export function secretId(name: string): string {
+  const env = process.env.ENVIRONMENT ?? 'sandbox';
+  return `simmerplan/${env}/${name}`;
+}
+
+export async function getSecret(
+  name: string,
+  send: (id: string) => Promise<string | undefined> = async (id) =>
+    (await client.send(new GetSecretValueCommand({ SecretId: id }))).SecretString,
+): Promise<string> {
+  const id = secretId(name);
+  const hit = cache.get(id);
+  if (hit && Date.now() - hit.fetchedAt < CACHE_TTL_MS) return hit.value;
+  const value = await send(id);
+  if (!value) throw new Error(`Secret ${id} is empty`);
+  cache.set(id, { value, fetchedAt: Date.now() });
+  return value;
+}
