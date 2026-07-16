@@ -124,7 +124,7 @@ async function scaffold(): Promise<void> {
   const { Table } = await client.send(new DescribeTableCommand({ TableName: tableName }));
   console.log(`\n✅ Table created successfully.`);
   console.log(`   Name: ${Table?.TableName}`);
-  console.log(`   ARN:  ${Table?.TableARN}`);
+  console.log(`   ARN:  ${Table?.TableArn}`);
   console.log(`   GSIs: ${Table?.GlobalSecondaryIndexes?.map(g => g.IndexName).join(', ')}`);
 }
 
