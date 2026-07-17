@@ -78,6 +78,24 @@ export async function getStoredIdToken(): Promise<string | null> {
   return SecureStore.getItemAsync(KEYS.idToken);
 }
 
+/**
+ * Create a household and adopt the refreshed tokens (the new ID token carries
+ * custom:householdId). Passing the stored refresh token lets the server mint
+ * them in the same round-trip.
+ */
+export async function createHousehold(name: string): Promise<void> {
+  const refreshToken = (await SecureStore.getItemAsync(KEYS.refreshToken)) ?? undefined;
+  const { tokens } = await api.household.create.mutate({ name, refreshToken });
+  if (tokens) await storeTokens(tokens);
+}
+
+/** Join a household via an invite token, then adopt the refreshed tokens. */
+export async function joinHousehold(token: string): Promise<void> {
+  const refreshToken = (await SecureStore.getItemAsync(KEYS.refreshToken)) ?? undefined;
+  const { tokens } = await api.household.join.mutate({ token, refreshToken });
+  if (tokens) await storeTokens(tokens);
+}
+
 export async function signOut(): Promise<void> {
   await GoogleSignin.signOut().catch(() => undefined);
   await Promise.all(Object.values(KEYS).map((k) => SecureStore.deleteItemAsync(k)));

@@ -12,91 +12,56 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Typed API client (SIM-29). Exposes a tRPC-style surface (api.auth.google
-// .mutate(...)) backed by fetch — real tRPC adoption is a separate decision
-// once the API grows. Attaches the Cognito ID token as the Bearer token
-// (custom:householdId only exists in ID tokens) and retries once through a
-// refresh on 401.
+// End-to-end typed tRPC client (SIM-29). Two clients mirror the API's
+// public/protected split: `auth` is unauthenticated (that's where tokens come
+// from), `household` sits behind the Lambda authorizer. Non-batching httpLink
+// so each call maps to POST/GET /<router>/<procedure> and matches the existing
+// API Gateway {proxy+} routes. The protected client attaches the Cognito ID
+// token as Bearer (custom:householdId only lives in ID tokens) and retries once
+// through a refresh on 401.
 
 import * as SecureStore from 'expo-secure-store';
-import type {
-  AuthGoogleRequest,
-  AuthGoogleResponse,
-  AuthRefreshResponse,
-  HouseholdCreateRequest,
-  HouseholdCreateResponse,
-  HouseholdGetResponse,
-  HouseholdInviteResponse,
-  HouseholdJoinRequest,
-  HouseholdJoinResponse,
-} from '@simmerplan/types';
+import { createTRPCClient, httpLink } from '@trpc/client';
+import type { AuthRouter, HouseholdRouter } from '@simmerplan/api/router';
 
 const BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? '';
 
-class ApiError extends Error {
-  constructor(
-    readonly status: number,
-    message: string,
-  ) {
-    super(message);
-  }
-}
-
-async function request<T>(
-  method: 'GET' | 'POST',
-  path: string,
-  body?: unknown,
-  { auth = true, retried = false }: { auth?: boolean; retried?: boolean } = {},
-): Promise<T> {
-  const headers: Record<string, string> = { 'content-type': 'application/json' };
-  if (auth) {
+// fetch wrapper for the protected client: attach the ID token, and on a 401
+// refresh once and retry. Refresh is imported lazily to avoid an import cycle
+// with ./auth (which imports this module).
+// tRPC's httpLink invokes fetch with (RequestInfo | URL, RequestInit); React
+// Native's fetch takes RequestInfo, and tRPC only ever passes a string URL.
+const authedFetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+  const withToken = async (): Promise<RequestInit> => {
     const idToken = await SecureStore.getItemAsync('cognito.idToken');
-    if (idToken) headers.authorization = `Bearer ${idToken}`;
-  }
+    const headers = new Headers(init?.headers);
+    if (idToken) headers.set('authorization', `Bearer ${idToken}`);
+    return { ...init, headers };
+  };
 
-  const response = await fetch(`${BASE_URL}${path}`, {
-    method,
-    headers,
-    body: body === undefined ? undefined : JSON.stringify(body),
-  });
+  const url = input as RequestInfo;
+  let response = await fetch(url, await withToken());
+  if (response.status === 401) {
+    try {
+      const { refreshTokens } = await import('./auth');
+      await refreshTokens();
+    } catch {
+      return response;
+    }
+    response = await fetch(url, await withToken());
+  }
+  return response;
+};
 
-  if (response.status === 401 && auth && !retried) {
-    const { refreshTokens } = await import('./auth');
-    await refreshTokens();
-    return request<T>(method, path, body, { auth, retried: true });
-  }
-  if (!response.ok) {
-    const detail = (await response.json().catch(() => ({}))) as { error?: string };
-    throw new ApiError(response.status, detail.error ?? `HTTP ${response.status}`);
-  }
-  return (await response.json()) as T;
-}
+const authClient = createTRPCClient<AuthRouter>({
+  links: [httpLink({ url: `${BASE_URL}/auth` })],
+});
+
+const householdClient = createTRPCClient<HouseholdRouter>({
+  links: [httpLink({ url: `${BASE_URL}/household`, fetch: authedFetch })],
+});
 
 export const api = {
-  auth: {
-    google: {
-      mutate: (input: AuthGoogleRequest) =>
-        request<AuthGoogleResponse>('POST', '/auth/google', input, { auth: false }),
-    },
-    refresh: {
-      mutate: (input: { refreshToken: string }) =>
-        request<AuthRefreshResponse>('POST', '/auth/refresh', input, { auth: false }),
-    },
-  },
-  household: {
-    create: {
-      mutate: (input: HouseholdCreateRequest) =>
-        request<HouseholdCreateResponse>('POST', '/household/create', input),
-    },
-    invite: {
-      mutate: () => request<HouseholdInviteResponse>('POST', '/household/invite', {}),
-    },
-    join: {
-      mutate: (input: HouseholdJoinRequest) =>
-        request<HouseholdJoinResponse>('POST', '/household/join', input),
-    },
-    get: {
-      query: () => request<HouseholdGetResponse>('GET', '/household'),
-    },
-  },
+  auth: authClient,
+  household: householdClient,
 };

@@ -12,6 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Exercises the household tRPC router through the deployed Lambda handler,
+// driving it with API Gateway HTTP API (payload v2) events shaped exactly like
+// the tRPC httpLink produces (/household/<procedure>, proxy path param).
+
 import { beforeEach, describe, expect, it } from 'vitest';
 import { mockClient } from 'aws-sdk-client-mock';
 import {
@@ -35,21 +39,51 @@ const ddb = mockClient(DynamoDBDocumentClient);
 const cognito = mockClient(CognitoIdentityProviderClient);
 const secrets = mockClient(SecretsManagerClient);
 
-function event(
-  method: string,
-  path: string,
-  body: unknown,
-  ctx: { userId: string; householdId: string },
+type Ctx = { userId: string; householdId: string };
+
+/** Build the API Gateway v2 event a tRPC httpLink call to /household/<proc> produces. */
+function trpcEvent(
+  method: 'GET' | 'POST',
+  procedure: string,
+  input: unknown,
+  ctx: Ctx,
 ): APIGatewayProxyEventV2 {
+  const rawPath = `/household/${procedure}`;
+  const isQuery = method === 'GET';
+  const rawQueryString =
+    isQuery && input !== undefined ? `input=${encodeURIComponent(JSON.stringify(input))}` : '';
   return {
-    rawPath: path,
-    body: body === undefined ? undefined : JSON.stringify(body),
+    version: '2.0',
+    routeKey: `${method} /household/{proxy+}`,
+    rawPath,
+    rawQueryString,
+    headers: { 'content-type': 'application/json' },
+    pathParameters: { proxy: procedure },
     isBase64Encoded: false,
+    body: !isQuery && input !== undefined ? JSON.stringify(input) : undefined,
     requestContext: {
-      http: { method },
+      domainName: 'api.test',
+      http: { method, path: rawPath },
       authorizer: { lambda: ctx },
     },
   } as unknown as APIGatewayProxyEventV2;
+}
+
+type TrpcError = { message: string; code: number; data?: { code?: string; httpStatus?: number } };
+
+/** Invoke the handler and unwrap the tRPC envelope into { status, data, error }. */
+async function call<T = unknown>(
+  method: 'GET' | 'POST',
+  procedure: string,
+  input: unknown,
+  ctx: Ctx,
+): Promise<{ status: number; data: T; error?: TrpcError }> {
+  const result = (await handler(
+    trpcEvent(method, procedure, input, ctx),
+    {} as never,
+  )) as { statusCode: number; body: string };
+  const parsed = JSON.parse(result.body) as { result?: { data: T }; error?: TrpcError };
+  return { status: result.statusCode, data: parsed.result?.data as T, error: parsed.error };
 }
 
 function inviteToken(claims: Record<string, unknown>, expiresIn = '48h'): string {
@@ -67,34 +101,33 @@ beforeEach(() => {
   });
 });
 
-describe('POST /household/create', () => {
-  it('creates household, promotes user to owner, returns 201', async () => {
+describe('household.create', () => {
+  it('creates household, promotes user to owner', async () => {
     ddb.on(PutCommand).resolves({});
     ddb.on(UpdateCommand).resolves({});
-    const result = await handler(
-      event(
-        'POST',
-        '/household/create',
-        { name: 'LeBlanc Household' },
-        { userId: 'u1', householdId: '' },
-      ),
+    const { status, data } = await call<{ role: string; householdId: string }>(
+      'POST',
+      'create',
+      { name: 'LeBlanc Household' },
+      { userId: 'u1', householdId: '' },
     );
-    const response = JSON.parse((result as { body: string }).body);
-    expect((result as { statusCode: number }).statusCode).toBe(201);
-    expect(response.role).toBe('owner');
-    expect(response.householdId).toMatch(/^[0-9a-f-]{36}$/);
+    expect(status).toBe(200);
+    expect(data.role).toBe('owner');
+    expect(data.householdId).toMatch(/^[0-9a-f-]{36}$/);
     expect(cognito.commandCalls(AdminUpdateUserAttributesCommand)).toHaveLength(1);
   });
 
-  it('409s when the caller already has a household', async () => {
-    const result = await handler(
-      event('POST', '/household/create', { name: 'X' }, { userId: 'u1', householdId: 'hh-1' }),
-    );
-    expect((result as { statusCode: number }).statusCode).toBe(409);
+  it('409s (CONFLICT) when the caller already has a household', async () => {
+    const { status, error } = await call('POST', 'create', { name: 'X' }, {
+      userId: 'u1',
+      householdId: 'hh-1',
+    });
+    expect(status).toBe(409);
+    expect(error?.data?.code).toBe('CONFLICT');
   });
 });
 
-describe('POST /household/join', () => {
+describe('household.join', () => {
   const claims = { tokenId: 't-1', householdId: 'hh-1', invitedBy: 'u-owner' };
 
   it('joins with a valid single-use token', async () => {
@@ -102,21 +135,15 @@ describe('POST /household/join', () => {
     ddb.on(GetCommand).resolves({
       Item: { householdId: 'hh-1', name: 'LeBlanc Household', memberIds: ['u-owner'] },
     });
-    const result = await handler(
-      event(
-        'POST',
-        '/household/join',
-        { token: inviteToken(claims) },
-        { userId: 'u2', householdId: '' },
-      ),
+    const { status, data } = await call(
+      'POST',
+      'join',
+      { token: inviteToken(claims) },
+      { userId: 'u2', householdId: '' },
     );
-    const response = JSON.parse((result as { body: string }).body);
-    expect((result as { statusCode: number }).statusCode).toBe(200);
-    expect(response).toMatchObject({
-      householdId: 'hh-1',
-      role: 'member',
-      name: 'LeBlanc Household',
-    });
+    expect(status).toBe(200);
+    expect(data).toMatchObject({ householdId: 'hh-1', role: 'member', name: 'LeBlanc Household' });
+    // data is unknown here; toMatchObject validates the shape structurally.
   });
 
   it('409s when the invite was already used (conditional write fails)', async () => {
@@ -124,49 +151,46 @@ describe('POST /household/join', () => {
       name: 'ConditionalCheckFailedException',
     });
     ddb.on(UpdateCommand).rejects(conditionErr);
-    const result = await handler(
-      event(
-        'POST',
-        '/household/join',
-        { token: inviteToken(claims) },
-        { userId: 'u3', householdId: '' },
-      ),
+    const { status } = await call(
+      'POST',
+      'join',
+      { token: inviteToken(claims) },
+      { userId: 'u3', householdId: '' },
     );
-    expect((result as { statusCode: number }).statusCode).toBe(409);
+    expect(status).toBe(409);
   });
 
   it('401s on an expired invite token', async () => {
-    const result = await handler(
-      event(
-        'POST',
-        '/household/join',
-        { token: inviteToken(claims, '-1h') },
-        { userId: 'u2', householdId: '' },
-      ),
+    const { status } = await call(
+      'POST',
+      'join',
+      { token: inviteToken(claims, '-1h') },
+      { userId: 'u2', householdId: '' },
     );
-    expect((result as { statusCode: number }).statusCode).toBe(401);
+    expect(status).toBe(401);
   });
 
   it('401s on a token signed with the wrong key', async () => {
     const bad = jwt.sign(claims, 'wrong-key', { algorithm: 'HS256', expiresIn: '48h' });
-    const result = await handler(
-      event('POST', '/household/join', { token: bad }, { userId: 'u2', householdId: '' }),
-    );
-    expect((result as { statusCode: number }).statusCode).toBe(401);
+    const { status } = await call('POST', 'join', { token: bad }, {
+      userId: 'u2',
+      householdId: '',
+    });
+    expect(status).toBe(401);
   });
 });
 
-describe('POST /household/invite', () => {
+describe('household.invite', () => {
   it('lets an owner mint a sandbox invite URL with a verifiable token', async () => {
     ddb.on(GetCommand).resolves({ Item: { userId: 'u1', role: 'owner' } });
     ddb.on(PutCommand).resolves({});
-    const result = await handler(
-      event('POST', '/household/invite', {}, { userId: 'u1', householdId: 'hh-1' }),
-    );
-    const response = JSON.parse((result as { body: string }).body);
-    expect((result as { statusCode: number }).statusCode).toBe(201);
-    expect(response.inviteUrl).toMatch(/^simmerplan:\/\/join\?token=/);
-    const token = response.inviteUrl.split('token=')[1];
+    const { status, data } = await call<{ inviteUrl: string }>('POST', 'invite', undefined, {
+      userId: 'u1',
+      householdId: 'hh-1',
+    });
+    expect(status).toBe(200);
+    expect(data.inviteUrl).toMatch(/^simmerplan:\/\/join\?token=/);
+    const token = data.inviteUrl.split('token=')[1];
     const verified = jwt.verify(token, SIGNING_KEY) as Record<string, unknown>;
     expect(verified.householdId).toBe('hh-1');
     expect(verified.invitedBy).toBe('u1');
@@ -174,18 +198,23 @@ describe('POST /household/invite', () => {
 
   it('403s for non-owners', async () => {
     ddb.on(GetCommand).resolves({ Item: { userId: 'u2', role: 'member' } });
-    const result = await handler(
-      event('POST', '/household/invite', {}, { userId: 'u2', householdId: 'hh-1' }),
-    );
-    expect((result as { statusCode: number }).statusCode).toBe(403);
+    const { status, error } = await call('POST', 'invite', undefined, {
+      userId: 'u2',
+      householdId: 'hh-1',
+    });
+    expect(status).toBe(403);
+    expect(error?.data?.code).toBe('FORBIDDEN');
   });
 });
 
-describe('routing', () => {
-  it('404s unknown routes', async () => {
-    const result = await handler(
-      event('DELETE', '/household/nope', undefined, { userId: 'u1', householdId: 'hh-1' }),
-    );
-    expect((result as { statusCode: number }).statusCode).toBe(404);
+describe('routing / auth', () => {
+  it('401s (UNAUTHORIZED) when the authorizer set no userId', async () => {
+    const { status } = await call('POST', 'invite', undefined, { userId: '', householdId: '' });
+    expect(status).toBe(401);
+  });
+
+  it('404s an unknown procedure', async () => {
+    const { status } = await call('POST', 'nope', {}, { userId: 'u1', householdId: 'hh-1' });
+    expect(status).toBe(404);
   });
 });
