@@ -4,11 +4,12 @@
   "private": true,
 "scripts": {
     "build": "pnpm -r build",
-    "lint": "eslint . --ext .ts,.tsx",
+    "lint": "eslint .",
     "format": "prettier --write .",
     "scaffold:db": "pnpm --filter @simmerplan/scripts scaffold:db"
   },
   "devDependencies": {
+    "@eslint/js": "^9.0.0",
     "@typescript-eslint/eslint-plugin": "^8.0.0",
     "@typescript-eslint/parser": "^8.0.0",
     "eslint": "^9.0.0",
