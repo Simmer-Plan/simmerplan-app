@@ -12,15 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Household Lambda (SIM-29): serves the household tRPC router over API Gateway
-// HTTP API route /household/{proxy+}, behind the Lambda authorizer. userId and
-// householdId are read from the authorizer context in createContext.
+// Ambient globals available in the Expo/Hermes runtime.
 
-import { awsLambdaRequestHandler } from '@trpc/server/adapters/aws-lambda';
-import { householdRouter } from '../trpc/routers/household';
-import { createContext } from '../trpc/context';
+declare const process: {
+  env: {
+    EXPO_PUBLIC_API_URL?: string;
+    EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID?: string;
+    EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID?: string;
+  };
+};
 
-export const handler = awsLambdaRequestHandler({
-  router: householdRouter,
-  createContext,
-});
+declare function atob(data: string): string;

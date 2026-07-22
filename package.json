@@ -2,11 +2,13 @@
   "name": "simmerplan",
   "version": "0.0.0",
   "private": true,
-"scripts": {
+  "scripts": {
     "build": "pnpm -r build",
     "lint": "eslint . --ext .ts,.tsx",
     "format": "prettier --write .",
-    "scaffold:db": "pnpm --filter @simmerplan/scripts scaffold:db"
+    "scaffold:db": "pnpm --filter @simmerplan/scripts scaffold:db",
+    "test": "pnpm -r --if-present test",
+    "typecheck": "pnpm -r --if-present typecheck"
   },
   "devDependencies": {
     "@typescript-eslint/eslint-plugin": "^8.0.0",

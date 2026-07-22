@@ -12,6 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-export const handler = async (event: unknown): Promise<unknown> => {
-  throw new Error('Not implemented');
-};
+// Auth Lambda (SIM-29): serves the auth tRPC router over API Gateway HTTP API
+// route POST /auth/{proxy+}. Unauthenticated — this is where tokens come from.
+// The adapter maps /auth/<procedure> to the router procedure via pathParameters.
+
+import { awsLambdaRequestHandler } from '@trpc/server/adapters/aws-lambda';
+import { authRouter } from '../trpc/routers/auth';
+import { createContext } from '../trpc/context';
+
+export const handler = awsLambdaRequestHandler({
+  router: authRouter,
+  createContext,
+});

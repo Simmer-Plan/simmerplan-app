@@ -12,6 +12,39 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Domain entity types (PantryItem, Recipe, MealPlan, etc.) — to be defined.
+export type Role = 'owner' | 'member';
 
-export {};
+export interface UserRecord {
+  userId: string;
+  householdId: string | null;
+  role: Role | null;
+  googleId: string;
+  email: string;
+  name: string;
+  photoUrl: string;
+  createdAt: string;
+  updatedAt: string;
+  version: number;
+}
+
+export interface HouseholdRecord {
+  householdId: string;
+  name: string;
+  createdBy: string;
+  /** Maintained on create/join so GET /household can list members without a GSI. */
+  memberIds: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface InviteRecord {
+  tokenId: string;
+  householdId: string;
+  invitedBy: string;
+  createdAt: string;
+  expiresAt: string;
+  usedAt: string | null;
+  usedBy: string | null;
+  /** Unix seconds — DynamoDB TTL, expiry + 7 days. */
+  TTL: number;
+}

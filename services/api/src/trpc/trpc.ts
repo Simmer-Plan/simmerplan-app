@@ -1,0 +1,30 @@
+// Copyright 2026 Dave LeBlanc
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// tRPC initialisation (SIM-29). protectedProcedure enforces that the Lambda
+// authorizer populated a userId; procedures that additionally require (or
+// forbid) household membership check ctx.householdId themselves.
+
+import { initTRPC, TRPCError } from '@trpc/server';
+import type { Context } from './context';
+
+const t = initTRPC.context<Context>().create();
+
+export const router = t.router;
+export const publicProcedure = t.procedure;
+
+export const protectedProcedure = t.procedure.use(({ ctx, next }) => {
+  if (!ctx.userId) throw new TRPCError({ code: 'UNAUTHORIZED' });
+  return next({ ctx: { userId: ctx.userId, householdId: ctx.householdId } });
+});

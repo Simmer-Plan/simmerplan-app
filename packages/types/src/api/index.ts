@@ -12,6 +12,88 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// tRPC router types and API request/response shapes — to be defined.
+import type { Role } from '../entities';
 
-export {};
+export interface CognitoTokens {
+  accessToken: string;
+  idToken: string;
+  refreshToken: string;
+}
+
+export interface AuthUser {
+  userId: string;
+  email: string;
+  name: string;
+  photoUrl: string;
+  householdId: string | null;
+  role: Role | null;
+}
+
+export interface AuthGoogleRequest {
+  idToken: string;
+}
+
+export interface AuthGoogleResponse {
+  cognitoTokens: CognitoTokens;
+  user: AuthUser;
+  isNewUser: boolean;
+}
+
+export interface AuthRefreshRequest {
+  refreshToken: string;
+}
+
+export interface AuthRefreshResponse {
+  tokens: Omit<CognitoTokens, 'refreshToken'>;
+}
+
+export interface HouseholdCreateRequest {
+  name: string;
+  /** When provided, the response includes tokens refreshed with the new householdId claim. */
+  refreshToken?: string;
+}
+
+export interface HouseholdCreateResponse {
+  householdId: string;
+  name: string;
+  role: Role;
+  tokens: Omit<CognitoTokens, 'refreshToken'> | null;
+}
+
+export interface HouseholdInviteResponse {
+  inviteUrl: string;
+  expiresAt: string;
+}
+
+export interface HouseholdJoinRequest {
+  token: string;
+  refreshToken?: string;
+}
+
+export interface HouseholdJoinResponse {
+  householdId: string;
+  name: string;
+  role: Role;
+  tokens: Omit<CognitoTokens, 'refreshToken'> | null;
+}
+
+export interface HouseholdMember {
+  userId: string;
+  name: string;
+  email: string;
+  photoUrl: string;
+  role: Role | null;
+}
+
+export interface HouseholdGetResponse {
+  householdId: string;
+  name: string;
+  members: HouseholdMember[];
+}
+
+/** Request context injected by the Lambda authorizer. */
+export interface AuthContext {
+  userId: string;
+  /** Empty string until the user creates or joins a household. */
+  householdId: string;
+}
