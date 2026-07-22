@@ -7,14 +7,19 @@
     "start": "expo start",
     "android": "expo start --android",
     "ios": "expo start --ios",
-    "build": "expo export"
+    "build": "expo export",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "expo": "~52.0.0",
     "expo-router": "~4.0.0",
     "react": "18.3.1",
     "react-native": "0.76.0",
-    "@simmerplan/types": "workspace:*"
+    "@simmerplan/types": "workspace:*",
+    "@simmerplan/api": "workspace:*",
+    "@react-native-google-signin/google-signin": "^13.1.0",
+    "@trpc/client": "^11.0.0",
+    "expo-secure-store": "~14.0.0"
   },
   "devDependencies": {
     "@types/react": "~18.3.0"

@@ -3,8 +3,14 @@
   "compilerOptions": {
     "jsx": "react-native",
     "paths": {
-      "@simmerplan/types": ["../../packages/types/src/index.ts"]
-    }
+      "@simmerplan/types": [
+        "../../packages/types/src/index.ts"
+      ]
+    },
+    "module": "ESNext"
   },
-  "include": ["**/*.ts", "**/*.tsx"]
+  "include": [
+    "**/*.ts",
+    "**/*.tsx"
+  ]
 }

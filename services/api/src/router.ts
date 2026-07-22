@@ -12,15 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Household Lambda (SIM-29): serves the household tRPC router over API Gateway
-// HTTP API route /household/{proxy+}, behind the Lambda authorizer. userId and
-// householdId are read from the authorizer context in createContext.
+// Router type surface consumed by the mobile tRPC client (SIM-29). Type-only —
+// no server code is bundled into the app. The two routers are deployed as
+// separate Lambdas behind separate API Gateway routes (public /auth vs.
+// authorizer-gated /household), so the client uses one link per router.
 
-import { awsLambdaRequestHandler } from '@trpc/server/adapters/aws-lambda';
-import { householdRouter } from '../trpc/routers/household';
-import { createContext } from '../trpc/context';
-
-export const handler = awsLambdaRequestHandler({
-  router: householdRouter,
-  createContext,
-});
+export type { AuthRouter } from './trpc/routers/auth';
+export type { HouseholdRouter } from './trpc/routers/household';
