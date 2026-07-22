@@ -12,6 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-export const handler = async (event: unknown): Promise<unknown> => {
+export const handler = async (_event: unknown): Promise<unknown> => {
   throw new Error('Not implemented');
 };
