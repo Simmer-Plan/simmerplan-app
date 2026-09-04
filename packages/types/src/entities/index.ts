@@ -48,3 +48,43 @@ export interface InviteRecord {
   /** Unix seconds — DynamoDB TTL, expiry + 7 days. */
   TTL: number;
 }
+
+// --- Pantry (SIM-9) ---------------------------------------------------------
+
+export type StorageLocationKind = 'cupboard' | 'fridge' | 'freezer' | 'pantry' | 'custom';
+
+/** Units a pantry quantity can be expressed in. */
+export type QuantityUnit =
+  | 'count'
+  | 'lb'
+  | 'oz'
+  | 'g'
+  | 'kg'
+  | 'ml'
+  | 'l'
+  | 'cup'
+  | 'tbsp'
+  | 'tsp';
+
+export interface StorageLocationRecord {
+  locationId: string;
+  householdId: string;
+  name: string;
+  kind: StorageLocationKind;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PantryItemRecord {
+  itemId: string;
+  householdId: string;
+  name: string;
+  /** Storage location, or null if unassigned. */
+  locationId: string | null;
+  quantity: number;
+  unit: QuantityUnit;
+  /** ISO date (YYYY-MM-DD), or null when the item has no expiry. */
+  expiryDate: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
