@@ -179,7 +179,10 @@ export default function SettingsScreen() {
           value={profile?.preferences.expiryAlerts ?? false}
           onValueChange={(v) => setPref({ expiryAlerts: v })}
         />
-        <Text style={styles.hint}>Delivery is enabled once push notifications ship (Phase 4).</Text>
+        <Text style={styles.hint}>
+          On-device delivery needs a dev build (expo-notifications); the token registers via
+          profile.registerDevice once enabled (SIM-22).
+        </Text>
       </Section>
 
       <Section title="Dietary preferences">

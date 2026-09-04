@@ -188,6 +188,24 @@ export interface WeeklyScheduleRecord {
 
 export const DEFAULT_SCHEDULE_DAY: ScheduleDay = { busyness: 'normal', label: '' };
 
+// --- Push notifications (SIM-22) --------------------------------------------
+
+export type DevicePlatform = 'ios' | 'android';
+
+export interface PushDeviceRecord {
+  userId: string;
+  /** Expo push token (ExponentPushToken[...]). */
+  pushToken: string;
+  platform: DevicePlatform;
+  createdAt: string;
+}
+
+export interface PushNotification {
+  title: string;
+  body: string;
+  data?: Record<string, string>;
+}
+
 export interface MealPlanSlot {
   /** Assigned recipe, or null for a free-text/empty slot. */
   recipeId: string | null;
