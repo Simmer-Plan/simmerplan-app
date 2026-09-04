@@ -25,6 +25,7 @@ import { createTRPCClient, httpLink } from '@trpc/client';
 import type {
   AuthRouter,
   HouseholdRouter,
+  MealplanRouter,
   PantryRouter,
   ProfileRouter,
   RecipeRouter,
@@ -79,10 +80,15 @@ const profileClient = createTRPCClient<ProfileRouter>({
   links: [httpLink({ url: `${BASE_URL}/profile`, fetch: authedFetch })],
 });
 
+const mealplanClient = createTRPCClient<MealplanRouter>({
+  links: [httpLink({ url: `${BASE_URL}/mealplans`, fetch: authedFetch })],
+});
+
 export const api = {
   auth: authClient,
   household: householdClient,
   pantry: pantryClient,
   recipes: recipeClient,
   profile: profileClient,
+  mealplans: mealplanClient,
 };

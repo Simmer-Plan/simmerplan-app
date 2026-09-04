@@ -141,3 +141,29 @@ export interface RecipeAvailability {
   availableCount: number;
   makeable: boolean;
 }
+
+// --- Meal plans (SIM-16) ----------------------------------------------------
+
+export type MealType = 'breakfast' | 'lunch' | 'dinner';
+export type DayOfWeek = 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun';
+
+export const MEAL_TYPES: MealType[] = ['breakfast', 'lunch', 'dinner'];
+export const DAYS_OF_WEEK: DayOfWeek[] = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
+
+export interface MealPlanSlot {
+  /** Assigned recipe, or null for a free-text/empty slot. */
+  recipeId: string | null;
+  /** Denormalised recipe name for display without a join. */
+  recipeName: string;
+  note: string;
+}
+
+export interface MealPlanRecord {
+  householdId: string;
+  /** ISO date (YYYY-MM-DD) of the week's Monday. */
+  weekStartDate: string;
+  /** Keyed by `${day}:${mealType}`, e.g. "mon:dinner". */
+  slots: Record<string, MealPlanSlot>;
+  createdAt: string;
+  updatedAt: string;
+}
