@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import type {
+  MealPlanSlot,
   RecipeComplexity,
   RecipeIngredient,
   Role,
@@ -129,6 +130,12 @@ export interface BarcodeLookupResult {
   brand: string | null;
   category: string | null;
   suggestedLocationKind: StorageLocationKind;
+}
+
+/** A week's meal plan (SIM-16). */
+export interface MealPlanWeek {
+  weekStartDate: string;
+  slots: Record<string, MealPlanSlot>;
 }
 
 /** Request context injected by the Lambda authorizer. */
