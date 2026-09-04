@@ -18,10 +18,18 @@
 
 import { z } from 'zod';
 import { TRPCError } from '@trpc/server';
-import { GetCommand, PutCommand } from '@aws-sdk/lib-dynamodb';
-import type { MealPlanRecord, MealPlanWeek } from '@simmerplan/types';
-import { DAYS_OF_WEEK, MEAL_TYPES } from '@simmerplan/types';
+import { GetCommand, PutCommand, QueryCommand } from '@aws-sdk/lib-dynamodb';
+import type {
+  MealPlanRecord,
+  MealPlanWeek,
+  MealSuggestion,
+  PantryItemRecord,
+  RecipeRecord,
+  UserRecord,
+} from '@simmerplan/types';
+import { DAYS_OF_WEEK, DEFAULT_DIETARY_PREFERENCES, MEAL_TYPES } from '@simmerplan/types';
 import { docClient, TABLE_NAME } from '../../lib/dynamo';
+import { generateMealSuggestions } from '../../lib/bedrock';
 import { protectedProcedure, router } from '../trpc';
 
 const plansPK = (hid: string) => `HOUSEHOLD#${hid}#MEAL_PLANS`;
@@ -105,6 +113,63 @@ export const mealplanRouter = router({
       const slots = { ...record.slots };
       delete slots[slotKey(input.day, input.mealType)];
       return saveWeek(hid, input.weekStartDate, record, slots);
+    }),
+
+  // AI meal suggestions (SIM-14): assembles pantry + saved recipes + the
+  // caller's dietary prefs and asks Bedrock for ideas. Requires Bedrock model
+  // access enabled and bedrock:InvokeModel on the Lambda role.
+  suggest: protectedProcedure
+    .input(
+      z
+        .object({ count: z.number().int().min(1).max(10).default(3), mealType: mealEnum.optional() })
+        .optional(),
+    )
+    .mutation(async ({ ctx, input }): Promise<MealSuggestion[]> => {
+      const hid = requireHousehold(ctx);
+      const opts = input ?? { count: 3 };
+
+      const [recipesResult, pantryResult, userResult] = await Promise.all([
+        docClient.send(
+          new QueryCommand({
+            TableName: TABLE_NAME,
+            KeyConditionExpression: 'PK = :pk',
+            ExpressionAttributeValues: { ':pk': `HOUSEHOLD#${hid}#RECIPES` },
+          }),
+        ),
+        docClient.send(
+          new QueryCommand({
+            TableName: TABLE_NAME,
+            KeyConditionExpression: 'PK = :pk',
+            ExpressionAttributeValues: { ':pk': `HOUSEHOLD#${hid}#PANTRY` },
+          }),
+        ),
+        docClient.send(
+          new GetCommand({ TableName: TABLE_NAME, Key: { PK: `USER#${ctx.userId}`, SK: 'METADATA' } }),
+        ),
+      ]);
+
+      const recipes = ((recipesResult.Items ?? []) as RecipeRecord[]).map((r) => ({
+        recipeId: r.recipeId,
+        name: r.name,
+        ingredients: (r.ingredients ?? []).map((i) => i.name),
+      }));
+      const pantryItemNames = ((pantryResult.Items ?? []) as PantryItemRecord[]).map((p) => p.name);
+      const dietary = (userResult.Item as UserRecord | undefined)?.dietary ?? DEFAULT_DIETARY_PREFERENCES;
+
+      try {
+        return await generateMealSuggestions({
+          pantryItemNames,
+          recipes,
+          dietary,
+          count: opts.count ?? 3,
+          mealType: opts.mealType,
+        });
+      } catch (err) {
+        throw new TRPCError({
+          code: 'BAD_GATEWAY',
+          message: `Meal suggestion failed: ${(err as Error).message}`,
+        });
+      }
     }),
 });
 
