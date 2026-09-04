@@ -16,7 +16,7 @@
 
 import { beforeEach, describe, expect, it } from 'vitest';
 import { mockClient } from 'aws-sdk-client-mock';
-import { DynamoDBDocumentClient, GetCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
+import { DeleteCommand, DynamoDBDocumentClient, GetCommand, PutCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
 import type { APIGatewayProxyEventV2 } from 'aws-lambda';
 import { handler } from '../src/functions/profile-handler';
 
@@ -162,6 +162,33 @@ describe('profile dietary preferences (SIM-15)', () => {
   it('rejects a blank diet type', async () => {
     const { status } = await call('POST', 'updateDietary', { dietType: '' }, CTX);
     expect(status).toBe(400);
+  });
+});
+
+describe('profile push devices (SIM-22)', () => {
+  it('registers a device push token', async () => {
+    ddb.on(PutCommand).resolves({});
+    const { status, data } = await call<{ registered: boolean }>(
+      'POST',
+      'registerDevice',
+      { pushToken: 'ExponentPushToken[abc]', platform: 'ios' },
+      CTX,
+    );
+    expect(status).toBe(200);
+    expect(data.registered).toBe(true);
+    expect(ddb.commandCalls(PutCommand)).toHaveLength(1);
+  });
+
+  it('rejects a blank push token', async () => {
+    const { status } = await call('POST', 'registerDevice', { pushToken: '' }, CTX);
+    expect(status).toBe(400);
+  });
+
+  it('unregisters a device', async () => {
+    ddb.on(DeleteCommand).resolves({});
+    const { status, data } = await call<{ unregistered: boolean }>('POST', 'unregisterDevice', { pushToken: 'ExponentPushToken[abc]' }, CTX);
+    expect(status).toBe(200);
+    expect(data.unregistered).toBe(true);
   });
 });
 
