@@ -19,3 +19,4 @@
 
 export type { AuthRouter } from './trpc/routers/auth';
 export type { HouseholdRouter } from './trpc/routers/household';
+export type { PantryRouter } from './trpc/routers/pantry';

@@ -12,6 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-export const handler = async (_event: unknown): Promise<unknown> => {
-  throw new Error('Not implemented');
-};
+// Pantry Lambda (SIM-9): serves the pantry tRPC router over API Gateway HTTP
+// API route /pantry/{proxy+}, behind the Lambda authorizer. userId and
+// householdId are read from the authorizer context in createContext.
+
+import { awsLambdaRequestHandler } from '@trpc/server/adapters/aws-lambda';
+import { pantryRouter } from '../trpc/routers/pantry';
+import { createContext } from '../trpc/context';
+
+export const handler = awsLambdaRequestHandler({
+  router: pantryRouter,
+  createContext,
+});
