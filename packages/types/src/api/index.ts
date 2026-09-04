@@ -149,6 +149,12 @@ export interface WeeklySchedule {
   days: Partial<Record<DayOfWeek, ScheduleDay>>;
 }
 
+/** Result of syncing busy nights from Google Calendar (SIM-19). */
+export interface CalendarSyncResult {
+  busyDays: DayOfWeek[];
+  days: Partial<Record<DayOfWeek, ScheduleDay>>;
+}
+
 /** An AI-generated meal suggestion (SIM-14). */
 export interface MealSuggestion {
   title: string;
