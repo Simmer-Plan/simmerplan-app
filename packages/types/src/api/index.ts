@@ -12,7 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import type { RecipeComplexity, RecipeIngredient, Role, UserPreferences } from '../entities';
+import type {
+  RecipeComplexity,
+  RecipeIngredient,
+  Role,
+  StorageLocationKind,
+  UserPreferences,
+} from '../entities';
 
 export interface CognitoTokens {
   accessToken: string;
@@ -113,6 +119,16 @@ export interface RecipeDraft {
   cookTimeMinutes: number | null;
   complexity: RecipeComplexity;
   tags: string[];
+}
+
+/** Result of a barcode/UPC product lookup (SIM-10). */
+export interface BarcodeLookupResult {
+  barcode: string;
+  found: boolean;
+  name: string | null;
+  brand: string | null;
+  category: string | null;
+  suggestedLocationKind: StorageLocationKind;
 }
 
 /** Request context injected by the Lambda authorizer. */

@@ -16,7 +16,7 @@
 // it with API Gateway HTTP API (payload v2) events shaped like the tRPC
 // httpLink produces (/pantry/<procedure>, proxy path param).
 
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { mockClient } from 'aws-sdk-client-mock';
 import {
   DeleteCommand,
@@ -180,6 +180,45 @@ describe('pantry items', () => {
     const { status, data } = await call<{ itemId: string }>('POST', 'deleteItem', { itemId: 'i1' }, WITH_HH);
     expect(status).toBe(200);
     expect(data.itemId).toBe('i1');
+  });
+});
+
+describe('pantry.lookupBarcode (SIM-10)', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('returns product details for a known barcode', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({
+        ok: true,
+        status: 200,
+        json: async () => ({ status: 1, product: { product_name: 'Frozen Peas', brands: 'Green', categories: 'Frozen vegetables' } }),
+      })),
+    );
+    const { status, data } = await call<{ found: boolean; name: string; suggestedLocationKind: string }>(
+      'GET',
+      'lookupBarcode',
+      { barcode: '0123456789012' },
+      WITH_HH,
+    );
+    expect(status).toBe(200);
+    expect(data.found).toBe(true);
+    expect(data.name).toBe('Frozen Peas');
+    expect(data.suggestedLocationKind).toBe('freezer');
+  });
+
+  it('returns found=false on a 404 from the product API', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, status: 404, json: async () => ({}) })));
+    const { status, data } = await call<{ found: boolean }>('GET', 'lookupBarcode', { barcode: '000000000000' }, WITH_HH);
+    expect(status).toBe(200);
+    expect(data.found).toBe(false);
+  });
+
+  it('rejects a non-numeric barcode', async () => {
+    const { status } = await call('GET', 'lookupBarcode', { barcode: 'abc' }, WITH_HH);
+    expect(status).toBe(400);
   });
 });
 
