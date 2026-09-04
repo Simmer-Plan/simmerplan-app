@@ -32,7 +32,12 @@
       ]
     },
     "plugins": [
-      "@react-native-google-signin/google-signin"
+      [
+        "@react-native-google-signin/google-signin",
+        {
+          "iosUrlScheme": "com.googleusercontent.apps.1093708328490-evl9sb2fotn9eu6ujovhafvun09g3pi6"
+        }
+      ]
     ]
   }
 }
