@@ -128,6 +128,43 @@ describe('profile.updateName / updatePreferences', () => {
   });
 });
 
+describe('profile dietary preferences (SIM-15)', () => {
+  it('get returns defaulted dietary preferences', async () => {
+    ddb.on(GetCommand).resolves({ Item: USER });
+    const { data } = await call<{ dietary: { dietType: string; allergies: string[] } }>('GET', 'get', undefined, CTX);
+    expect(data.dietary).toEqual({
+      dietType: 'none',
+      allergies: [],
+      dislikedIngredients: [],
+      cuisinePreferences: [],
+    });
+  });
+
+  it('updates dietary preferences', async () => {
+    ddb.on(UpdateCommand).resolves({
+      Attributes: {
+        ...USER,
+        dietary: { dietType: 'vegetarian', allergies: ['peanuts'], dislikedIngredients: [], cuisinePreferences: ['thai'] },
+      },
+    });
+    const { status, data } = await call<{ dietary: { dietType: string; allergies: string[]; cuisinePreferences: string[] } }>(
+      'POST',
+      'updateDietary',
+      { dietType: 'vegetarian', allergies: ['peanuts'], cuisinePreferences: ['thai'] },
+      CTX,
+    );
+    expect(status).toBe(200);
+    expect(data.dietary.dietType).toBe('vegetarian');
+    expect(data.dietary.allergies).toEqual(['peanuts']);
+    expect(data.dietary.cuisinePreferences).toEqual(['thai']);
+  });
+
+  it('rejects a blank diet type', async () => {
+    const { status } = await call('POST', 'updateDietary', { dietType: '' }, CTX);
+    expect(status).toBe(400);
+  });
+});
+
 describe('auth guard', () => {
   it('401s when the authorizer set no userId', async () => {
     const { status } = await call('GET', 'get', undefined, { userId: '', householdId: '' });

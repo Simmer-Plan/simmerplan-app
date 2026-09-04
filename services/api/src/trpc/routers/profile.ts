@@ -21,7 +21,7 @@ import { z } from 'zod';
 import { TRPCError } from '@trpc/server';
 import { GetCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
 import type { ProfileResponse, UserRecord } from '@simmerplan/types';
-import { DEFAULT_USER_PREFERENCES } from '@simmerplan/types';
+import { DEFAULT_DIETARY_PREFERENCES, DEFAULT_USER_PREFERENCES } from '@simmerplan/types';
 import { docClient, TABLE_NAME } from '../../lib/dynamo';
 import { protectedProcedure, router } from '../trpc';
 
@@ -42,6 +42,7 @@ function toProfile(u: UserRecord): ProfileResponse {
     householdId: u.householdId,
     role: u.role,
     preferences: { ...DEFAULT_USER_PREFERENCES, ...(u.preferences ?? {}) },
+    dietary: { ...DEFAULT_DIETARY_PREFERENCES, ...(u.dietary ?? {}) },
   };
 }
 
@@ -85,6 +86,34 @@ export const profileRouter = router({
             ':prefs': { weeklyPlanReminder: input.weeklyPlanReminder, expiryAlerts: input.expiryAlerts },
             ':now': new Date().toISOString(),
           },
+          ReturnValues: 'ALL_NEW',
+        }),
+      ).catch((err: Error) => {
+        if (err.name === 'ConditionalCheckFailedException') {
+          throw new TRPCError({ code: 'NOT_FOUND', message: 'User record not found' });
+        }
+        throw err;
+      });
+      return toProfile(result.Attributes as UserRecord);
+    }),
+
+  updateDietary: protectedProcedure
+    .input(
+      z.object({
+        dietType: z.string().trim().min(1).max(40),
+        allergies: z.array(z.string().trim().min(1)).default([]),
+        dislikedIngredients: z.array(z.string().trim().min(1)).default([]),
+        cuisinePreferences: z.array(z.string().trim().min(1)).default([]),
+      }),
+    )
+    .mutation(async ({ ctx, input }): Promise<ProfileResponse> => {
+      const result = await docClient.send(
+        new UpdateCommand({
+          TableName: TABLE_NAME,
+          Key: userKey(ctx.userId),
+          UpdateExpression: 'SET dietary = :d, updatedAt = :now',
+          ConditionExpression: 'attribute_exists(PK)',
+          ExpressionAttributeValues: { ':d': input, ':now': new Date().toISOString() },
           ReturnValues: 'ALL_NEW',
         }),
       ).catch((err: Error) => {
