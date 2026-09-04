@@ -22,6 +22,7 @@ import {
   ActivityIndicator,
   Alert,
   Button,
+  Pressable,
   ScrollView,
   StyleSheet,
   Switch,
@@ -36,6 +37,8 @@ import { signOut } from '../../../lib/auth';
 type Profile = Awaited<ReturnType<typeof api.profile.get.query>>;
 type Household = Awaited<ReturnType<typeof api.household.get.query>>;
 
+const DIET_TYPES = ['none', 'vegetarian', 'vegan', 'pescatarian', 'keto', 'paleo', 'halal', 'kosher'];
+
 export default function SettingsScreen() {
   const router = useRouter();
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -47,12 +50,23 @@ export default function SettingsScreen() {
   const [savingName, setSavingName] = useState(false);
   const [inviteUrl, setInviteUrl] = useState<string | null>(null);
 
+  // Dietary preferences (SIM-15) — comma-separated lists in the UI.
+  const [dietType, setDietType] = useState('none');
+  const [allergies, setAllergies] = useState('');
+  const [dislikes, setDislikes] = useState('');
+  const [cuisines, setCuisines] = useState('');
+  const [savingDietary, setSavingDietary] = useState(false);
+
   const load = useCallback(async () => {
     setError(null);
     try {
       const prof = await api.profile.get.query();
       setProfile(prof);
       setName(prof.name);
+      setDietType(prof.dietary.dietType);
+      setAllergies(prof.dietary.allergies.join(', '));
+      setDislikes(prof.dietary.dislikedIngredients.join(', '));
+      setCuisines(prof.dietary.cuisinePreferences.join(', '));
       // Household is optional — a user may not have one yet.
       try {
         setHousehold(await api.household.get.query());
@@ -91,6 +105,26 @@ export default function SettingsScreen() {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save preferences');
       await load();
+    }
+  }
+
+  async function saveDietary() {
+    setSavingDietary(true);
+    setError(null);
+    const parse = (s: string) => s.split(',').map((t) => t.trim()).filter(Boolean);
+    try {
+      setProfile(
+        await api.profile.updateDietary.mutate({
+          dietType: dietType.trim() || 'none',
+          allergies: parse(allergies),
+          dislikedIngredients: parse(dislikes),
+          cuisinePreferences: parse(cuisines),
+        }),
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save dietary preferences');
+    } finally {
+      setSavingDietary(false);
     }
   }
 
@@ -148,6 +182,25 @@ export default function SettingsScreen() {
         <Text style={styles.hint}>Delivery is enabled once push notifications ship (Phase 4).</Text>
       </Section>
 
+      <Section title="Dietary preferences">
+        <Text style={styles.label}>Diet type</Text>
+        <View style={styles.chipRow}>
+          {DIET_TYPES.map((d) => (
+            <Pressable key={d} onPress={() => setDietType(d)} style={[styles.chip, dietType === d && styles.chipActive]}>
+              <Text style={[styles.chipText, dietType === d && styles.chipTextActive]}>{d}</Text>
+            </Pressable>
+          ))}
+        </View>
+        <Text style={styles.label}>Allergies</Text>
+        <TextInput style={styles.input} value={allergies} onChangeText={setAllergies} placeholder="e.g. peanuts, gluten" autoCapitalize="none" />
+        <Text style={styles.label}>Disliked ingredients</Text>
+        <TextInput style={styles.input} value={dislikes} onChangeText={setDislikes} placeholder="e.g. cilantro, olives" autoCapitalize="none" />
+        <Text style={styles.label}>Cuisine preferences</Text>
+        <TextInput style={styles.input} value={cuisines} onChangeText={setCuisines} placeholder="e.g. italian, thai" autoCapitalize="none" />
+        <Button title="Save dietary preferences" onPress={saveDietary} disabled={savingDietary} />
+        <Text style={styles.hint}>Comma-separated. These inform AI meal suggestions.</Text>
+      </Section>
+
       <Section title="Household">
         {household ? (
           <>
@@ -155,6 +208,7 @@ export default function SettingsScreen() {
             {household.members.map((m) => (
               <Text key={m.userId} style={styles.member}>
                 {m.name} · {m.role ?? 'member'}
+                {m.dietary.dietType !== 'none' ? ` · ${m.dietary.dietType}` : ''}
                 {m.userId === profile?.userId ? ' (you)' : ''}
               </Text>
             ))}
@@ -220,4 +274,9 @@ const styles = StyleSheet.create({
   spacer: { height: 8 },
   signOut: { marginTop: 8, marginBottom: 32 },
   error: { color: '#b00020' },
+  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  chip: { paddingVertical: 5, paddingHorizontal: 10, borderRadius: 16, borderWidth: 1, borderColor: '#ccc' },
+  chipActive: { backgroundColor: '#2a6', borderColor: '#2a6' },
+  chipText: { fontSize: 13, color: '#333' },
+  chipTextActive: { color: '#fff' },
 });

@@ -25,6 +25,22 @@ export const DEFAULT_USER_PREFERENCES: UserPreferences = {
   expiryAlerts: true,
 };
 
+/** Dietary preferences/restrictions that inform AI suggestions (SIM-15). */
+export interface DietaryPreferences {
+  /** e.g. none|vegetarian|vegan|pescatarian|keto|paleo|halal|kosher, or custom. */
+  dietType: string;
+  allergies: string[];
+  dislikedIngredients: string[];
+  cuisinePreferences: string[];
+}
+
+export const DEFAULT_DIETARY_PREFERENCES: DietaryPreferences = {
+  dietType: 'none',
+  allergies: [],
+  dislikedIngredients: [],
+  cuisinePreferences: [],
+};
+
 export interface UserRecord {
   userId: string;
   householdId: string | null;
@@ -35,6 +51,8 @@ export interface UserRecord {
   photoUrl: string;
   /** Absent on records created before SIM-21 — callers default it. */
   preferences?: UserPreferences;
+  /** Absent on records created before SIM-15 — callers default it. */
+  dietary?: DietaryPreferences;
   createdAt: string;
   updatedAt: string;
   version: number;

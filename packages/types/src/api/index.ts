@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import type {
+  DietaryPreferences,
   MealPlanSlot,
   RecipeComplexity,
   RecipeIngredient,
@@ -90,6 +91,8 @@ export interface HouseholdMember {
   email: string;
   photoUrl: string;
   role: Role | null;
+  /** Individual dietary preferences, surfaced for household meal planning (SIM-15). */
+  dietary: DietaryPreferences;
 }
 
 export interface HouseholdGetResponse {
@@ -107,6 +110,7 @@ export interface ProfileResponse {
   householdId: string | null;
   role: Role | null;
   preferences: UserPreferences;
+  dietary: DietaryPreferences;
 }
 
 /** An editable recipe draft — e.g. parsed from an imported URL (SIM-12). */
