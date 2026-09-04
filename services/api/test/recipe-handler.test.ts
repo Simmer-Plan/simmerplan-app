@@ -22,6 +22,7 @@ import {
   GetCommand,
   PutCommand,
   QueryCommand,
+  UpdateCommand,
 } from '@aws-sdk/lib-dynamodb';
 import type { APIGatewayProxyEventV2 } from 'aws-lambda';
 import { handler } from '../src/functions/recipe-handler';
@@ -158,6 +159,111 @@ describe('recipe.list / get / update / delete', () => {
     const { status, data } = await call<{ recipeId: string }>('POST', 'delete', { recipeId: 'r1' }, WITH_HH);
     expect(status).toBe(200);
     expect(data.recipeId).toBe('r1');
+  });
+});
+
+describe('recipe.search (pantry availability, SIM-13)', () => {
+  const recipes = [
+    {
+      recipeId: 'r1',
+      householdId: 'hh-1',
+      name: 'Bean Chili',
+      description: '',
+      complexity: 'simple',
+      tags: ['vegetarian'],
+      instructions: [],
+      prepTimeMinutes: 5,
+      cookTimeMinutes: 20,
+      favourite: false,
+      lastUsedAt: null,
+      ingredients: [
+        { name: 'Beans', quantity: 1, unit: 'cup', pantryItemId: 'p1' },
+        { name: 'Onion', quantity: 1, unit: 'count', pantryItemId: null },
+      ],
+    },
+    {
+      recipeId: 'r2',
+      householdId: 'hh-1',
+      name: 'Plain Rice',
+      description: '',
+      complexity: 'simple',
+      tags: [],
+      instructions: [],
+      prepTimeMinutes: 1,
+      cookTimeMinutes: 15,
+      favourite: true,
+      lastUsedAt: '2026-02-01T00:00:00.000Z',
+      ingredients: [{ name: 'Rice', quantity: 1, unit: 'cup', pantryItemId: 'p2' }],
+    },
+  ];
+  const pantry = [
+    { itemId: 'p2', householdId: 'hh-1', name: 'Rice' },
+    { itemId: 'p3', householdId: 'hh-1', name: 'Onion' },
+  ];
+
+  beforeEach(() => {
+    ddb
+      .on(QueryCommand, { ExpressionAttributeValues: { ':pk': 'HOUSEHOLD#hh-1#RECIPES' } })
+      .resolves({ Items: recipes });
+    ddb
+      .on(QueryCommand, { ExpressionAttributeValues: { ':pk': 'HOUSEHOLD#hh-1#PANTRY' } })
+      .resolves({ Items: pantry });
+  });
+
+  it('annotates recipes with pantry availability (link by id or name)', async () => {
+    const { status, data } = await call<
+      { recipeId: string; availability: { availableCount: number; totalCount: number; makeable: boolean } }[]
+    >('GET', 'search', undefined, WITH_HH);
+    expect(status).toBe(200);
+    const byId = Object.fromEntries(data.map((r) => [r.recipeId, r.availability]));
+    // Bean Chili: Onion matches by name, Beans (p1) not in pantry → 1/2, not makeable.
+    expect(byId.r1).toMatchObject({ availableCount: 1, totalCount: 2, makeable: false });
+    // Plain Rice: Rice matches by id p2 → 1/1, makeable.
+    expect(byId.r2).toMatchObject({ availableCount: 1, totalCount: 1, makeable: true });
+  });
+
+  it('makeableOnly returns just the fully-stocked recipes', async () => {
+    const { data } = await call<{ recipeId: string }[]>('GET', 'search', { makeableOnly: true }, WITH_HH);
+    expect(data.map((r) => r.recipeId)).toEqual(['r2']);
+  });
+
+  it('favouritesOnly filters to favourites', async () => {
+    const { data } = await call<{ recipeId: string }[]>('GET', 'search', { favouritesOnly: true }, WITH_HH);
+    expect(data.map((r) => r.recipeId)).toEqual(['r2']);
+  });
+
+  it('maxTotalMinutes filters by prep + cook time', async () => {
+    const { data } = await call<{ recipeId: string }[]>('GET', 'search', { maxTotalMinutes: 16 }, WITH_HH);
+    expect(data.map((r) => r.recipeId)).toEqual(['r2']); // Rice 16 min; Chili 25 min excluded
+  });
+});
+
+describe('recipe.setFavourite / markUsed', () => {
+  it('sets the favourite flag', async () => {
+    ddb.on(UpdateCommand).resolves({});
+    const { status, data } = await call<{ favourite: boolean }>(
+      'POST',
+      'setFavourite',
+      { recipeId: 'r1', favourite: true },
+      WITH_HH,
+    );
+    expect(status).toBe(200);
+    expect(data.favourite).toBe(true);
+  });
+
+  it('404s setFavourite for a missing recipe', async () => {
+    ddb.on(UpdateCommand).rejects(
+      Object.assign(new Error('conditional failed'), { name: 'ConditionalCheckFailedException' }),
+    );
+    const { status } = await call('POST', 'setFavourite', { recipeId: 'nope', favourite: true }, WITH_HH);
+    expect(status).toBe(404);
+  });
+
+  it('records lastUsedAt on markUsed', async () => {
+    ddb.on(UpdateCommand).resolves({});
+    const { status, data } = await call<{ lastUsedAt: string }>('POST', 'markUsed', { recipeId: 'r1' }, WITH_HH);
+    expect(status).toBe(200);
+    expect(data.lastUsedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
   });
 });
 
