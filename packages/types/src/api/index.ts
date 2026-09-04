@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import type { Role } from '../entities';
+import type { Role, UserPreferences } from '../entities';
 
 export interface CognitoTokens {
   accessToken: string;
@@ -89,6 +89,17 @@ export interface HouseholdGetResponse {
   householdId: string;
   name: string;
   members: HouseholdMember[];
+}
+
+/** The signed-in user's profile + notification preferences (SIM-21). */
+export interface ProfileResponse {
+  userId: string;
+  name: string;
+  email: string;
+  photoUrl: string;
+  householdId: string | null;
+  role: Role | null;
+  preferences: UserPreferences;
 }
 
 /** Request context injected by the Lambda authorizer. */

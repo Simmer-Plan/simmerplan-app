@@ -14,6 +14,17 @@
 
 export type Role = 'owner' | 'member';
 
+/** Notification preferences (SIM-21). Delivery wiring is Phase 4 (FCM). */
+export interface UserPreferences {
+  weeklyPlanReminder: boolean;
+  expiryAlerts: boolean;
+}
+
+export const DEFAULT_USER_PREFERENCES: UserPreferences = {
+  weeklyPlanReminder: true,
+  expiryAlerts: true,
+};
+
 export interface UserRecord {
   userId: string;
   householdId: string | null;
@@ -22,6 +33,8 @@ export interface UserRecord {
   email: string;
   name: string;
   photoUrl: string;
+  /** Absent on records created before SIM-21 — callers default it. */
+  preferences?: UserPreferences;
   createdAt: string;
   updatedAt: string;
   version: number;
