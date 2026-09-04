@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import type { Role, UserPreferences } from '../entities';
+import type { RecipeComplexity, RecipeIngredient, Role, UserPreferences } from '../entities';
 
 export interface CognitoTokens {
   accessToken: string;
@@ -100,6 +100,19 @@ export interface ProfileResponse {
   householdId: string | null;
   role: Role | null;
   preferences: UserPreferences;
+}
+
+/** An editable recipe draft — e.g. parsed from an imported URL (SIM-12). */
+export interface RecipeDraft {
+  name: string;
+  description: string;
+  photoUrl: string | null;
+  ingredients: RecipeIngredient[];
+  instructions: string[];
+  prepTimeMinutes: number | null;
+  cookTimeMinutes: number | null;
+  complexity: RecipeComplexity;
+  tags: string[];
 }
 
 /** Request context injected by the Lambda authorizer. */

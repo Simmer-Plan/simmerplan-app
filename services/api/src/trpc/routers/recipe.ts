@@ -21,9 +21,12 @@ import { z } from 'zod';
 import { TRPCError } from '@trpc/server';
 import { DeleteCommand, GetCommand, PutCommand, QueryCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
 import { randomUUID } from 'crypto';
-import type { PantryItemRecord, RecipeAvailability, RecipeRecord } from '@simmerplan/types';
+import type { PantryItemRecord, RecipeAvailability, RecipeDraft, RecipeRecord } from '@simmerplan/types';
 import { docClient, TABLE_NAME } from '../../lib/dynamo';
+import { parseRecipeJsonLd } from '../../lib/recipe-import';
 import { protectedProcedure, router } from '../trpc';
+
+const IMPORT_MAX_BYTES = 2_000_000;
 
 const UNITS = ['count', 'lb', 'oz', 'g', 'kg', 'ml', 'l', 'cup', 'tbsp', 'tsp'] as const;
 const COMPLEXITY = ['simple', 'moderate', 'complex'] as const;
@@ -285,6 +288,50 @@ export const recipeRouter = router({
       });
 
       return rows;
+    }),
+
+  // Import from a URL (SIM-12): fetch the page, parse schema.org/Recipe JSON-LD
+  // into a draft, and map ingredient names onto pantry items where possible.
+  // Returns a draft (not saved) so the user can review before creating.
+  importFromUrl: protectedProcedure
+    .input(z.object({ url: z.string().url() }))
+    .mutation(async ({ ctx, input }): Promise<RecipeDraft> => {
+      const hid = requireHousehold(ctx);
+
+      let html: string;
+      try {
+        const res = await fetch(input.url, {
+          headers: { 'user-agent': 'SimmerplanBot/1.0', accept: 'text/html' },
+          redirect: 'follow',
+        });
+        if (!res.ok) throw new Error(`status ${res.status}`);
+        html = (await res.text()).slice(0, IMPORT_MAX_BYTES);
+      } catch (err) {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: `Could not fetch the recipe URL: ${(err as Error).message}`,
+        });
+      }
+
+      const draft = parseRecipeJsonLd(html);
+      if (!draft) {
+        throw new TRPCError({ code: 'BAD_REQUEST', message: 'No recipe data found at that URL' });
+      }
+
+      const pantryResult = await docClient.send(
+        new QueryCommand({
+          TableName: TABLE_NAME,
+          KeyConditionExpression: 'PK = :pk',
+          ExpressionAttributeValues: { ':pk': pantryPK(hid) },
+        }),
+      );
+      const pantry = (pantryResult.Items ?? []) as PantryItemRecord[];
+      draft.ingredients = draft.ingredients.map((ing) => {
+        const lower = ing.name.toLowerCase();
+        const match = pantry.find((p) => lower.includes(p.name.trim().toLowerCase()));
+        return match ? { ...ing, pantryItemId: match.itemId } : ing;
+      });
+      return draft;
     }),
 
   delete: protectedProcedure
