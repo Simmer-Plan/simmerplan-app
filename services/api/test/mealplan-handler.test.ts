@@ -16,11 +16,13 @@
 
 import { beforeEach, describe, expect, it } from 'vitest';
 import { mockClient } from 'aws-sdk-client-mock';
-import { DynamoDBDocumentClient, GetCommand, PutCommand } from '@aws-sdk/lib-dynamodb';
+import { DynamoDBDocumentClient, GetCommand, PutCommand, QueryCommand } from '@aws-sdk/lib-dynamodb';
+import { BedrockRuntimeClient, InvokeModelCommand } from '@aws-sdk/client-bedrock-runtime';
 import type { APIGatewayProxyEventV2 } from 'aws-lambda';
 import { handler } from '../src/functions/mealplan-handler';
 
 const ddb = mockClient(DynamoDBDocumentClient);
+const bedrock = mockClient(BedrockRuntimeClient);
 
 type Ctx = { userId: string; householdId: string };
 
@@ -63,6 +65,7 @@ const WEEK = '2026-09-07';
 
 beforeEach(() => {
   ddb.reset();
+  bedrock.reset();
 });
 
 describe('mealplan.getWeek', () => {
@@ -132,6 +135,36 @@ describe('mealplan.setSlot / clearSlot', () => {
       WITH_HH,
     );
     expect(data.slots['mon:dinner']).toBeUndefined();
+  });
+});
+
+describe('mealplan.suggest (SIM-14, AI)', () => {
+  it('gathers context and returns parsed Bedrock suggestions', async () => {
+    ddb.on(QueryCommand, { ExpressionAttributeValues: { ':pk': 'HOUSEHOLD#hh-1#RECIPES' } }).resolves({
+      Items: [{ recipeId: 'r1', name: 'Chili', ingredients: [{ name: 'beans' }] }],
+    });
+    ddb.on(QueryCommand, { ExpressionAttributeValues: { ':pk': 'HOUSEHOLD#hh-1#PANTRY' } }).resolves({
+      Items: [{ itemId: 'p1', name: 'Beans' }],
+    });
+    ddb.on(GetCommand).resolves({ Item: { userId: 'u1', dietary: { dietType: 'vegetarian', allergies: [], dislikedIngredients: [], cuisinePreferences: [] } } });
+    bedrock.on(InvokeModelCommand).resolves({
+      body: new TextEncoder().encode(
+        JSON.stringify({ content: [{ type: 'text', text: '[{"title":"Bean Chili","description":"Warm","recipeId":"r1","usesPantryItems":["Beans"]}]' }] }),
+      ),
+    } as never);
+
+    const { status, data } = await call<{ title: string; recipeId: string }[]>('POST', 'suggest', { count: 3 }, WITH_HH);
+    expect(status).toBe(200);
+    expect(data).toHaveLength(1);
+    expect(data[0]).toMatchObject({ title: 'Bean Chili', recipeId: 'r1' });
+  });
+
+  it('502s when Bedrock invocation fails', async () => {
+    ddb.on(QueryCommand).resolves({ Items: [] });
+    ddb.on(GetCommand).resolves({ Item: { userId: 'u1' } });
+    bedrock.on(InvokeModelCommand).rejects(new Error('AccessDeniedException'));
+    const { status } = await call('POST', 'suggest', { count: 3 }, WITH_HH);
+    expect(status).toBe(502);
   });
 });
 

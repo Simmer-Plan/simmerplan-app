@@ -142,6 +142,15 @@ export interface MealPlanWeek {
   slots: Record<string, MealPlanSlot>;
 }
 
+/** An AI-generated meal suggestion (SIM-14). */
+export interface MealSuggestion {
+  title: string;
+  description: string;
+  /** Matching saved recipe id, or null for a new idea. */
+  recipeId: string | null;
+  usesPantryItems: string[];
+}
+
 /** Request context injected by the Lambda authorizer. */
 export interface AuthContext {
   userId: string;

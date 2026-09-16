@@ -33,6 +33,7 @@ import { api } from '../../../lib/api';
 
 type Week = Awaited<ReturnType<typeof api.mealplans.getWeek.query>>;
 type Recipe = Awaited<ReturnType<typeof api.recipes.search.query>>[number];
+type Suggestion = Awaited<ReturnType<typeof api.mealplans.suggest.mutate>>[number];
 
 const DAY_LABEL: Record<DayOfWeek, string> = {
   mon: 'Mon', tue: 'Tue', wed: 'Wed', thu: 'Thu', fri: 'Fri', sat: 'Sat', sun: 'Sun',
@@ -59,6 +60,8 @@ export default function MealPlanScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<{ day: DayOfWeek; meal: MealType } | null>(null);
+  const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
+  const [suggesting, setSuggesting] = useState(false);
 
   const complexityById = useMemo(() => {
     const m = new Map(recipes.map((r) => [r.recipeId, r.complexity]));
@@ -108,6 +111,18 @@ export default function MealPlanScreen() {
     }
   }
 
+  async function getSuggestions() {
+    setSuggesting(true);
+    setError(null);
+    try {
+      setSuggestions(await api.mealplans.suggest.mutate({ count: 3 }));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to get suggestions');
+    } finally {
+      setSuggesting(false);
+    }
+  }
+
   if (loading || !week) {
     return (
       <View style={styles.centered}>
@@ -124,6 +139,19 @@ export default function MealPlanScreen() {
         <Button title="Next ›" onPress={() => setWeekStart((w) => addDays(w, 7))} />
       </View>
       {error ? <Text style={styles.error}>{error}</Text> : null}
+
+      <View style={styles.suggestCard}>
+        <Button title={suggesting ? 'Thinking…' : '✨ Get AI suggestions'} onPress={getSuggestions} disabled={suggesting} />
+        {suggestions.map((s, idx) => (
+          <View key={idx} style={styles.suggestion}>
+            <Text style={styles.suggestionTitle}>{s.title}</Text>
+            <Text style={styles.suggestionDesc}>{s.description}</Text>
+            {s.usesPantryItems.length ? (
+              <Text style={styles.suggestionUses}>Uses: {s.usesPantryItems.join(', ')}</Text>
+            ) : null}
+          </View>
+        ))}
+      </View>
 
       {DAYS_OF_WEEK.map((day, i) => (
         <View key={day} style={styles.dayCard}>
@@ -190,4 +218,9 @@ const styles = StyleSheet.create({
   pickerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#eee' },
   pickerName: { fontSize: 15 },
   error: { color: '#b00020' },
+  suggestCard: { borderWidth: 1, borderColor: '#e0e0e0', borderRadius: 10, padding: 12, gap: 10 },
+  suggestion: { gap: 2, paddingBottom: 8, borderBottomWidth: 1, borderBottomColor: '#eee' },
+  suggestionTitle: { fontSize: 15, fontWeight: '600' },
+  suggestionDesc: { fontSize: 14, color: '#444' },
+  suggestionUses: { fontSize: 12, color: '#2a6' },
 });
