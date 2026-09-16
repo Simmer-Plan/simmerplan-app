@@ -21,9 +21,12 @@ import { z } from 'zod';
 import { TRPCError } from '@trpc/server';
 import { DeleteCommand, PutCommand, QueryCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
 import { randomUUID } from 'crypto';
-import type { PantryItemRecord, StorageLocationRecord } from '@simmerplan/types';
+import type { BarcodeLookupResult, PantryItemRecord, StorageLocationRecord } from '@simmerplan/types';
 import { docClient, TABLE_NAME } from '../../lib/dynamo';
+import { parseOpenFoodFactsProduct } from '../../lib/barcode';
 import { protectedProcedure, router } from '../trpc';
+
+const OFF_ENDPOINT = 'https://world.openfoodfacts.org/api/v2/product';
 
 const LOCATION_KINDS = ['cupboard', 'fridge', 'freezer', 'pantry', 'custom'] as const;
 const UNITS = ['count', 'lb', 'oz', 'g', 'kg', 'ml', 'l', 'cup', 'tbsp', 'tsp'] as const;
@@ -195,6 +198,29 @@ export const pantryRouter = router({
         }),
       );
       return { itemId: input.itemId };
+    }),
+
+  // Barcode/UPC lookup via Open Food Facts (SIM-10). Returns product details to
+  // auto-fill the add-item form. The camera scan happens on-device; this maps a
+  // scanned (or typed) code to a product.
+  lookupBarcode: protectedProcedure
+    .input(z.object({ barcode: z.string().trim().regex(/^\d{6,14}$/, 'Barcode must be 6-14 digits') }))
+    .query(async ({ ctx, input }): Promise<BarcodeLookupResult> => {
+      requireHousehold(ctx);
+      try {
+        const res = await fetch(`${OFF_ENDPOINT}/${input.barcode}.json`, {
+          headers: { 'user-agent': 'SimmerplanApp/1.0', accept: 'application/json' },
+        });
+        // 404 means "no such product" — return a not-found result, not an error.
+        if (res.status === 404) return parseOpenFoodFactsProduct({ status: 0 }, input.barcode);
+        if (!res.ok) throw new Error(`status ${res.status}`);
+        return parseOpenFoodFactsProduct(await res.json(), input.barcode);
+      } catch (err) {
+        throw new TRPCError({
+          code: 'BAD_GATEWAY',
+          message: `Barcode lookup failed: ${(err as Error).message}`,
+        });
+      }
     }),
 });
 

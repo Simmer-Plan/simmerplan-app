@@ -54,6 +54,11 @@ export default function PantryScreen() {
   const [newLocationName, setNewLocationName] = useState('');
   const [newLocationKind, setNewLocationKind] = useState<StorageLocationKind>('pantry');
 
+  // Barcode lookup (SIM-10).
+  const [barcode, setBarcode] = useState('');
+  const [lookingUp, setLookingUp] = useState(false);
+  const [barcodeMsg, setBarcodeMsg] = useState<string | null>(null);
+
   const locationName = useMemo(() => {
     const map = new Map(locations.map((l) => [l.locationId, l.name]));
     return (id: string | null) => (id ? (map.get(id) ?? 'Unknown') : 'Unassigned');
@@ -134,6 +139,33 @@ export default function PantryScreen() {
     }
   }
 
+  async function lookupBarcode() {
+    if (!barcode.trim()) return;
+    setLookingUp(true);
+    setError(null);
+    setBarcodeMsg(null);
+    try {
+      const res = await api.pantry.lookupBarcode.query({ barcode: barcode.trim() });
+      if (!res.found) {
+        setBarcodeMsg('No product found for that barcode.');
+        return;
+      }
+      const loc = locations.find((l) => l.kind === res.suggestedLocationKind);
+      setForm((f) => ({
+        ...f,
+        name: res.name ?? f.name,
+        locationId: loc ? loc.locationId : f.locationId,
+      }));
+      setBarcodeMsg(
+        `Found: ${res.name ?? 'unknown'}${res.brand ? ` (${res.brand})` : ''} · suggested ${res.suggestedLocationKind}`,
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Barcode lookup failed');
+    } finally {
+      setLookingUp(false);
+    }
+  }
+
   async function addLocation() {
     if (!newLocationName.trim()) return;
     try {
@@ -180,6 +212,23 @@ export default function PantryScreen() {
                 onPress={() => setFilterLocationId(l.locationId)}
               />
             ))}
+          </View>
+
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Add by barcode</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Barcode / UPC"
+              value={barcode}
+              onChangeText={setBarcode}
+              keyboardType="numeric"
+            />
+            <Button title={lookingUp ? 'Looking up…' : 'Look up'} onPress={lookupBarcode} disabled={lookingUp || !barcode.trim()} />
+            {barcodeMsg ? <Text style={styles.hint}>{barcodeMsg}</Text> : null}
+            <Text style={styles.hint}>
+              Camera scanning needs a dev build (expo-camera); for now enter the code — a match
+              fills the item form below.
+            </Text>
           </View>
 
           <View style={styles.card}>
@@ -302,4 +351,5 @@ const styles = StyleSheet.create({
   itemMeta: { fontSize: 13, color: '#666' },
   empty: { textAlign: 'center', color: '#888', paddingVertical: 24 },
   error: { color: '#b00020' },
+  hint: { fontSize: 12, color: '#888' },
 });
