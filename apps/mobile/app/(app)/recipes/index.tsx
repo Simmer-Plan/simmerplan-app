@@ -60,6 +60,10 @@ export default function RecipesScreen() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
+  // Import from URL (SIM-12).
+  const [importUrl, setImportUrl] = useState('');
+  const [importing, setImporting] = useState(false);
+
   // Browse/search filters (SIM-13).
   const [search, setSearch] = useState('');
   const [complexityFilter, setComplexityFilter] = useState<RecipeComplexity | null>(null);
@@ -88,6 +92,37 @@ export default function RecipesScreen() {
       setLoading(false);
     }
   }, [search, complexityFilter, makeableOnly, favouritesOnly, sort]);
+
+  // Parse a recipe URL and pre-fill the editor with the draft (SIM-12).
+  async function importFromUrl() {
+    if (!importUrl.trim()) return;
+    setImporting(true);
+    setError(null);
+    try {
+      const draft = await api.recipes.importFromUrl.mutate({ url: importUrl.trim() });
+      setEditingId(null);
+      setForm({
+        name: draft.name,
+        description: draft.description,
+        complexity: draft.complexity,
+        prepTimeMinutes: draft.prepTimeMinutes != null ? String(draft.prepTimeMinutes) : '',
+        cookTimeMinutes: draft.cookTimeMinutes != null ? String(draft.cookTimeMinutes) : '',
+        tags: draft.tags.join(', '),
+        ingredients: draft.ingredients.map((i) => ({
+          name: i.name,
+          quantity: i.quantity != null ? String(i.quantity) : '',
+          unit: i.unit ?? 'count',
+          pantryItemId: i.pantryItemId,
+        })),
+        instructions: [...draft.instructions],
+      });
+      setImportUrl('');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to import recipe');
+    } finally {
+      setImporting(false);
+    }
+  }
 
   async function toggleFavourite(r: Recipe) {
     try {
@@ -207,6 +242,28 @@ export default function RecipesScreen() {
       ListHeaderComponent={
         <View style={styles.header}>
           <Text style={styles.title}>Recipes</Text>
+
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Import a recipe</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Paste a recipe URL"
+              value={importUrl}
+              onChangeText={setImportUrl}
+              autoCapitalize="none"
+              autoCorrect={false}
+              keyboardType="url"
+            />
+            <Button
+              title={importing ? 'Importing…' : 'Import from URL'}
+              onPress={importFromUrl}
+              disabled={importing || !importUrl.trim()}
+            />
+            <Text style={styles.hint}>
+              Parses the page&apos;s recipe data into the editor below to review and save. Photo /
+              OCR import is coming later.
+            </Text>
+          </View>
 
           <View style={styles.card}>
             <Text style={styles.cardTitle}>Browse</Text>
@@ -440,4 +497,5 @@ const styles = StyleSheet.create({
   linkDanger: { color: '#b00020' },
   empty: { textAlign: 'center', color: '#888', paddingVertical: 24 },
   error: { color: '#b00020' },
+  hint: { fontSize: 12, color: '#888' },
 });

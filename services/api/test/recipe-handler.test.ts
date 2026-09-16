@@ -14,7 +14,7 @@
 
 // Exercises the recipe tRPC router through the deployed Lambda handler.
 
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { mockClient } from 'aws-sdk-client-mock';
 import {
   DeleteCommand,
@@ -235,6 +235,63 @@ describe('recipe.search (pantry availability, SIM-13)', () => {
   it('maxTotalMinutes filters by prep + cook time', async () => {
     const { data } = await call<{ recipeId: string }[]>('GET', 'search', { maxTotalMinutes: 16 }, WITH_HH);
     expect(data.map((r) => r.recipeId)).toEqual(['r2']); // Rice 16 min; Chili 25 min excluded
+  });
+});
+
+describe('recipe.importFromUrl (SIM-12)', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  const recipePage = (jsonLd: unknown) =>
+    `<html><head><script type="application/ld+json">${JSON.stringify(jsonLd)}</script></head></html>`;
+
+  it('parses a URL and maps ingredients onto pantry items', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({
+        ok: true,
+        status: 200,
+        text: async () =>
+          recipePage({
+            '@type': 'Recipe',
+            name: 'Imported Soup',
+            recipeIngredient: ['2 cups Rice', '1 tomato'],
+            recipeInstructions: 'Boil',
+          }),
+      })),
+    );
+    ddb
+      .on(QueryCommand, { ExpressionAttributeValues: { ':pk': 'HOUSEHOLD#hh-1#PANTRY' } })
+      .resolves({ Items: [{ itemId: 'p2', householdId: 'hh-1', name: 'Rice' }] });
+
+    const { status, data } = await call<{
+      name: string;
+      ingredients: { name: string; pantryItemId: string | null }[];
+    }>('POST', 'importFromUrl', { url: 'https://example.com/soup' }, WITH_HH);
+
+    expect(status).toBe(200);
+    expect(data.name).toBe('Imported Soup');
+    // "2 cups Rice" links to pantry Rice; "1 tomato" stays unlinked.
+    expect(data.ingredients.find((i) => i.name.includes('Rice'))?.pantryItemId).toBe('p2');
+    expect(data.ingredients.find((i) => i.name.includes('tomato'))?.pantryItemId).toBeNull();
+  });
+
+  it('400s when the page has no recipe data', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({ ok: true, status: 200, text: async () => '<html><body>no recipe</body></html>' })),
+    );
+    ddb.on(QueryCommand).resolves({ Items: [] });
+    const { status, error } = await call('POST', 'importFromUrl', { url: 'https://example.com/x' }, WITH_HH);
+    expect(status).toBe(400);
+    expect(error?.data?.code).toBe('BAD_REQUEST');
+  });
+
+  it('400s when the fetch fails', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, status: 404, text: async () => '' })));
+    const { status } = await call('POST', 'importFromUrl', { url: 'https://example.com/missing' }, WITH_HH);
+    expect(status).toBe(400);
   });
 });
 
