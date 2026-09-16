@@ -14,9 +14,9 @@
 
 // Exercises the schedule tRPC router through the deployed Lambda handler.
 
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { mockClient } from 'aws-sdk-client-mock';
-import { DynamoDBDocumentClient, GetCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
+import { DynamoDBDocumentClient, GetCommand, PutCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
 import type { APIGatewayProxyEventV2 } from 'aws-lambda';
 import { handler } from '../src/functions/schedule-handler';
 
@@ -97,6 +97,41 @@ describe('schedule.setDay', () => {
   it('rejects an invalid day or busyness', async () => {
     expect((await call('POST', 'setDay', { day: 'funday', busyness: 'free' }, CTX)).status).toBe(400);
     expect((await call('POST', 'setDay', { day: 'mon', busyness: 'chaotic' }, CTX)).status).toBe(400);
+  });
+});
+
+describe('schedule.syncFromGoogleCalendar (SIM-19)', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('flags calendar evening events as busy nights and stores them', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({
+        ok: true,
+        status: 200,
+        json: async () => ({ items: [{ summary: 'Soccer', start: { dateTime: '2026-09-08T18:30:00-04:00' } }] }),
+      })),
+    );
+    ddb.on(GetCommand).resolves({ Item: { userId: 'u1', days: {} } });
+    ddb.on(PutCommand).resolves({});
+
+    const { status, data } = await call<{ busyDays: string[]; days: Record<string, { busyness: string }> }>(
+      'POST',
+      'syncFromGoogleCalendar',
+      { accessToken: 'ya29.token' },
+      CTX,
+    );
+    expect(status).toBe(200);
+    expect(data.busyDays).toEqual(['tue']);
+    expect(data.days.tue.busyness).toBe('busy');
+  });
+
+  it('502s when the Calendar API call fails', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, status: 401, json: async () => ({}) })));
+    const { status } = await call('POST', 'syncFromGoogleCalendar', { accessToken: 'bad' }, CTX);
+    expect(status).toBe(502);
   });
 });
 

@@ -79,6 +79,17 @@ export async function getStoredIdToken(): Promise<string | null> {
 }
 
 /**
+ * Obtain a Google access token carrying the calendar.readonly scope (SIM-19).
+ * Requires the scope to be granted on the OAuth consent screen; the first call
+ * prompts the user to grant calendar access.
+ */
+export async function getCalendarAccessToken(): Promise<string> {
+  await GoogleSignin.addScopes({ scopes: ['https://www.googleapis.com/auth/calendar.readonly'] });
+  const { accessToken } = await GoogleSignin.getTokens();
+  return accessToken;
+}
+
+/**
  * Create a household and adopt the refreshed tokens (the new ID token carries
  * custom:householdId). Passing the stored refresh token lets the server mint
  * them in the same round-trip.

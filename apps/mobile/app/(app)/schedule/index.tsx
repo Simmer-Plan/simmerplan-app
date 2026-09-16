@@ -19,6 +19,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
+  Button,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -29,6 +30,7 @@ import {
 import type { DayOfWeek, NightBusyness, ScheduleDay } from '@simmerplan/types';
 import { DAYS_OF_WEEK, DEFAULT_SCHEDULE_DAY } from '@simmerplan/types';
 import { api } from '../../../lib/api';
+import { getCalendarAccessToken } from '../../../lib/auth';
 
 const DAY_LABEL: Record<DayOfWeek, string> = {
   mon: 'Monday', tue: 'Tuesday', wed: 'Wednesday', thu: 'Thursday', fri: 'Friday', sat: 'Saturday', sun: 'Sunday',
@@ -42,6 +44,7 @@ export default function ScheduleScreen() {
   );
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [syncing, setSyncing] = useState(false);
 
   const load = useCallback(async () => {
     setError(null);
@@ -73,6 +76,24 @@ export default function ScheduleScreen() {
     }
   }
 
+  async function syncCalendar() {
+    setSyncing(true);
+    setError(null);
+    try {
+      const accessToken = await getCalendarAccessToken();
+      const res = await api.schedule.syncFromGoogleCalendar.mutate({ accessToken });
+      setDays((prev) => {
+        const next = { ...prev };
+        for (const d of DAYS_OF_WEEK) next[d] = { ...DEFAULT_SCHEDULE_DAY, ...(res.days[d] ?? {}) };
+        return next;
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Calendar sync failed');
+    } finally {
+      setSyncing(false);
+    }
+  }
+
   if (loading) {
     return (
       <View style={styles.centered}>
@@ -84,7 +105,8 @@ export default function ScheduleScreen() {
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <Text style={styles.title}>Weekly schedule</Text>
-      <Text style={styles.hint}>Busy nights get simpler meal suggestions. Calendar sync comes later.</Text>
+      <Text style={styles.hint}>Busy nights get simpler meal suggestions.</Text>
+      <Button title={syncing ? 'Syncing…' : 'Sync busy nights from Google Calendar'} onPress={syncCalendar} disabled={syncing} />
       {error ? <Text style={styles.error}>{error}</Text> : null}
 
       {DAYS_OF_WEEK.map((day) => {
