@@ -18,24 +18,25 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { mockClient } from 'aws-sdk-client-mock';
 import { DeleteCommand, DynamoDBDocumentClient, GetCommand, PutCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
 import type { APIGatewayProxyEventV2 } from 'aws-lambda';
-import { handler } from '../src/functions/profile-handler';
+import { handler } from '../src/functions/index';
 
 const ddb = mockClient(DynamoDBDocumentClient);
 
 type Ctx = { userId: string; householdId: string };
 
 function trpcEvent(method: 'GET' | 'POST', procedure: string, input: unknown, ctx: Ctx): APIGatewayProxyEventV2 {
-  const rawPath = `/profile/${procedure}`;
+  const proc = `profile.${procedure}`;
+  const rawPath = `/${proc}`;
   const isQuery = method === 'GET';
   const rawQueryString =
     isQuery && input !== undefined ? `input=${encodeURIComponent(JSON.stringify(input))}` : '';
   return {
     version: '2.0',
-    routeKey: `${method} /profile/{proxy+}`,
+    routeKey: `${method} /{proxy+}`,
     rawPath,
     rawQueryString,
     headers: { 'content-type': 'application/json' },
-    pathParameters: { proxy: procedure },
+    pathParameters: { proxy: proc },
     isBase64Encoded: false,
     body: !isQuery && input !== undefined ? JSON.stringify(input) : undefined,
     requestContext: { domainName: 'api.test', http: { method, path: rawPath }, authorizer: { lambda: ctx } },

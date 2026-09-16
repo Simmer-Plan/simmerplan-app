@@ -17,11 +17,9 @@
 // separate Lambdas behind separate API Gateway routes (public /auth vs.
 // authorizer-gated /household), so the client uses one link per router.
 
+// Auth and household are separate Lambdas behind their own API Gateway routes
+// (public /auth, gated /household). Everything else is served by the single
+// application Lambda via the combined AppRouter (SIM-41).
 export type { AuthRouter } from './trpc/routers/auth';
 export type { HouseholdRouter } from './trpc/routers/household';
-export type { PantryRouter } from './trpc/routers/pantry';
-export type { RecipeRouter } from './trpc/routers/recipe';
-export type { ProfileRouter } from './trpc/routers/profile';
-export type { MealplanRouter } from './trpc/routers/mealplan';
-export type { GroceryRouter } from './trpc/routers/grocery';
-export type { ScheduleRouter } from './trpc/routers/schedule';
+export type { AppRouter } from './trpc/routers/app';
