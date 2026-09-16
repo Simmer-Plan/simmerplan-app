@@ -13,11 +13,13 @@
 // limitations under the License.
 
 import type {
+  DayOfWeek,
   DietaryPreferences,
   MealPlanSlot,
   RecipeComplexity,
   RecipeIngredient,
   Role,
+  ScheduleDay,
   StorageLocationKind,
   UserPreferences,
 } from '../entities';
@@ -140,6 +142,11 @@ export interface BarcodeLookupResult {
 export interface MealPlanWeek {
   weekStartDate: string;
   slots: Record<string, MealPlanSlot>;
+}
+
+/** The signed-in user's weekly schedule (SIM-18). */
+export interface WeeklySchedule {
+  days: Partial<Record<DayOfWeek, ScheduleDay>>;
 }
 
 /** An AI-generated meal suggestion (SIM-14). */

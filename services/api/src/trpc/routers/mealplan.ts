@@ -26,6 +26,7 @@ import type {
   PantryItemRecord,
   RecipeRecord,
   UserRecord,
+  WeeklyScheduleRecord,
 } from '@simmerplan/types';
 import { DAYS_OF_WEEK, DEFAULT_DIETARY_PREFERENCES, MEAL_TYPES } from '@simmerplan/types';
 import { docClient, TABLE_NAME } from '../../lib/dynamo';
@@ -128,7 +129,7 @@ export const mealplanRouter = router({
       const hid = requireHousehold(ctx);
       const opts = input ?? { count: 3 };
 
-      const [recipesResult, pantryResult, userResult] = await Promise.all([
+      const [recipesResult, pantryResult, userResult, scheduleResult] = await Promise.all([
         docClient.send(
           new QueryCommand({
             TableName: TABLE_NAME,
@@ -146,6 +147,9 @@ export const mealplanRouter = router({
         docClient.send(
           new GetCommand({ TableName: TABLE_NAME, Key: { PK: `USER#${ctx.userId}`, SK: 'METADATA' } }),
         ),
+        docClient.send(
+          new GetCommand({ TableName: TABLE_NAME, Key: { PK: `USER#${ctx.userId}`, SK: 'SCHEDULE#WEEKLY' } }),
+        ),
       ]);
 
       const recipes = ((recipesResult.Items ?? []) as RecipeRecord[]).map((r) => ({
@@ -155,12 +159,19 @@ export const mealplanRouter = router({
       }));
       const pantryItemNames = ((pantryResult.Items ?? []) as PantryItemRecord[]).map((p) => p.name);
       const dietary = (userResult.Item as UserRecord | undefined)?.dietary ?? DEFAULT_DIETARY_PREFERENCES;
+      const scheduleDays = (scheduleResult.Item as WeeklyScheduleRecord | undefined)?.days ?? {};
+      const schedule = Object.entries(scheduleDays).map(([day, entry]) => ({
+        day,
+        busyness: entry?.busyness ?? 'normal',
+        label: entry?.label ?? '',
+      }));
 
       try {
         return await generateMealSuggestions({
           pantryItemNames,
           recipes,
           dietary,
+          schedule,
           count: opts.count ?? 3,
           mealType: opts.mealType,
         });

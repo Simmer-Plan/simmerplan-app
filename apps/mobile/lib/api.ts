@@ -30,6 +30,7 @@ import type {
   PantryRouter,
   ProfileRouter,
   RecipeRouter,
+  ScheduleRouter,
 } from '@simmerplan/api/router';
 
 const BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? '';
@@ -89,6 +90,10 @@ const groceryClient = createTRPCClient<GroceryRouter>({
   links: [httpLink({ url: `${BASE_URL}/grocery`, fetch: authedFetch })],
 });
 
+const scheduleClient = createTRPCClient<ScheduleRouter>({
+  links: [httpLink({ url: `${BASE_URL}/schedule`, fetch: authedFetch })],
+});
+
 export const api = {
   auth: authClient,
   household: householdClient,
@@ -97,4 +102,5 @@ export const api = {
   profile: profileClient,
   mealplans: mealplanClient,
   grocery: groceryClient,
+  schedule: scheduleClient,
 };

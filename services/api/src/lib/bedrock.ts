@@ -33,6 +33,8 @@ export interface SuggestionContext {
   pantryItemNames: string[];
   recipes: { recipeId: string; name: string; ingredients: string[] }[];
   dietary: DietaryPreferences;
+  /** Per-weeknight busyness (SIM-18) — the model favours simpler meals on busy nights. */
+  schedule?: { day: string; busyness: string; label: string }[];
   count: number;
   mealType?: string;
 }
@@ -40,8 +42,9 @@ export interface SuggestionContext {
 const SYSTEM_PROMPT =
   'You are a household meal-planning assistant. Suggest meals that use what the ' +
   'household already has in the pantry, respect their dietary restrictions, and ' +
-  'prefer their saved recipes when a good match exists. Reply with ONLY a JSON ' +
-  'array — no prose, no code fences.';
+  'prefer their saved recipes when a good match exists. Favour simple, quick ' +
+  'meals on nights marked busy and more involved ones on free nights. Reply with ' +
+  'ONLY a JSON array — no prose, no code fences.';
 
 /** Build the (system, user) prompt for a suggestion request. Pure. */
 export function buildSuggestionPrompt(ctx: SuggestionContext): { system: string; user: string } {
@@ -51,6 +54,7 @@ export function buildSuggestionPrompt(ctx: SuggestionContext): { system: string;
       mealType: ctx.mealType ?? 'any',
     },
     dietary: ctx.dietary,
+    schedule: ctx.schedule ?? [],
     pantry: ctx.pantryItemNames,
     savedRecipes: ctx.recipes.map((r) => ({ recipeId: r.recipeId, name: r.name, ingredients: r.ingredients })),
     responseSchema: {

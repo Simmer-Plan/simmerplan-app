@@ -24,3 +24,4 @@ export type { RecipeRouter } from './trpc/routers/recipe';
 export type { ProfileRouter } from './trpc/routers/profile';
 export type { MealplanRouter } from './trpc/routers/mealplan';
 export type { GroceryRouter } from './trpc/routers/grocery';
+export type { ScheduleRouter } from './trpc/routers/schedule';

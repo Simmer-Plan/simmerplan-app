@@ -168,6 +168,26 @@ export type DayOfWeek = 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun';
 export const MEAL_TYPES: MealType[] = ['breakfast', 'lunch', 'dinner'];
 export const DAYS_OF_WEEK: DayOfWeek[] = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
 
+// --- Weekly schedule (SIM-18) -----------------------------------------------
+
+export type NightBusyness = 'busy' | 'normal' | 'free';
+
+export interface ScheduleDay {
+  busyness: NightBusyness;
+  /** Optional recurring label, e.g. "soccer night". */
+  label: string;
+}
+
+export interface WeeklyScheduleRecord {
+  userId: string;
+  /** Per weekday busyness/label; missing days default to 'normal'. */
+  days: Partial<Record<DayOfWeek, ScheduleDay>>;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export const DEFAULT_SCHEDULE_DAY: ScheduleDay = { busyness: 'normal', label: '' };
+
 export interface MealPlanSlot {
   /** Assigned recipe, or null for a free-text/empty slot. */
   recipeId: string | null;

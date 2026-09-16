@@ -12,6 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-export const handler = async (_event: unknown): Promise<unknown> => {
-  throw new Error('Not implemented');
-};
+// Schedule Lambda (SIM-18): serves the schedule tRPC router over API Gateway
+// HTTP API route /schedule/{proxy+}, behind the Lambda authorizer.
+
+import { awsLambdaRequestHandler } from '@trpc/server/adapters/aws-lambda';
+import { scheduleRouter } from '../trpc/routers/schedule';
+import { createContext } from '../trpc/context';
+
+export const handler = awsLambdaRequestHandler({
+  router: scheduleRouter,
+  createContext,
+});
