@@ -114,6 +114,17 @@ export interface RecipeRecord {
   cookTimeMinutes: number | null;
   complexity: RecipeComplexity;
   tags: string[];
+  /** Household favourite flag (SIM-13). */
+  favourite: boolean;
+  /** ISO timestamp the recipe was last cooked/used, or null (SIM-13). */
+  lastUsedAt: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+/** Per-recipe pantry availability, computed against current stock (SIM-13). */
+export interface RecipeAvailability {
+  totalCount: number;
+  availableCount: number;
+  makeable: boolean;
 }

@@ -30,8 +30,9 @@ import {
 import type { QuantityUnit, RecipeComplexity } from '@simmerplan/types';
 import { api } from '../../../lib/api';
 
-type Recipe = Awaited<ReturnType<typeof api.recipes.list.query>>[number];
+type Recipe = Awaited<ReturnType<typeof api.recipes.search.query>>[number];
 type PantryItem = Awaited<ReturnType<typeof api.pantry.listItems.query>>[number];
+type SortMode = 'name' | 'recent' | 'availability';
 
 type IngredientRow = { name: string; quantity: string; unit: QuantityUnit; pantryItemId: string | null };
 
@@ -59,10 +60,26 @@ export default function RecipesScreen() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
+  // Browse/search filters (SIM-13).
+  const [search, setSearch] = useState('');
+  const [complexityFilter, setComplexityFilter] = useState<RecipeComplexity | null>(null);
+  const [makeableOnly, setMakeableOnly] = useState(false);
+  const [favouritesOnly, setFavouritesOnly] = useState(false);
+  const [sort, setSort] = useState<SortMode>('name');
+
   const load = useCallback(async () => {
     setError(null);
     try {
-      const [rs, ps] = await Promise.all([api.recipes.list.query(), api.pantry.listItems.query()]);
+      const [rs, ps] = await Promise.all([
+        api.recipes.search.query({
+          text: search.trim() || undefined,
+          complexity: complexityFilter ?? undefined,
+          makeableOnly: makeableOnly || undefined,
+          favouritesOnly: favouritesOnly || undefined,
+          sort,
+        }),
+        api.pantry.listItems.query(),
+      ]);
       setRecipes(rs);
       setPantry(ps);
     } catch (err) {
@@ -70,7 +87,25 @@ export default function RecipesScreen() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [search, complexityFilter, makeableOnly, favouritesOnly, sort]);
+
+  async function toggleFavourite(r: Recipe) {
+    try {
+      await api.recipes.setFavourite.mutate({ recipeId: r.recipeId, favourite: !r.favourite });
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update favourite');
+    }
+  }
+
+  async function markCooked(r: Recipe) {
+    try {
+      await api.recipes.markUsed.mutate({ recipeId: r.recipeId });
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to mark used');
+    }
+  }
 
   useEffect(() => {
     void load();
@@ -172,6 +207,34 @@ export default function RecipesScreen() {
       ListHeaderComponent={
         <View style={styles.header}>
           <Text style={styles.title}>Recipes</Text>
+
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Browse</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Search name or description"
+              value={search}
+              onChangeText={setSearch}
+              autoCorrect={false}
+            />
+            <View style={styles.chipRow}>
+              <Chip label="Makeable now" active={makeableOnly} onPress={() => setMakeableOnly((v) => !v)} />
+              <Chip label="★ Favourites" active={favouritesOnly} onPress={() => setFavouritesOnly((v) => !v)} />
+            </View>
+            <Text style={styles.label}>Complexity</Text>
+            <View style={styles.chipRow}>
+              <Chip label="Any" active={complexityFilter === null} onPress={() => setComplexityFilter(null)} />
+              {COMPLEXITY.map((c) => (
+                <Chip key={c} label={c} active={complexityFilter === c} onPress={() => setComplexityFilter(c)} />
+              ))}
+            </View>
+            <Text style={styles.label}>Sort</Text>
+            <View style={styles.chipRow}>
+              {(['name', 'availability', 'recent'] as SortMode[]).map((s) => (
+                <Chip key={s} label={s} active={sort === s} onPress={() => setSort(s)} />
+              ))}
+            </View>
+          </View>
 
           <View style={styles.card}>
             <Text style={styles.cardTitle}>{editingId ? 'Edit recipe' : 'New recipe'}</Text>
@@ -302,18 +365,36 @@ export default function RecipesScreen() {
       renderItem={({ item }) => (
         <View style={styles.item}>
           <View style={styles.flex1}>
-            <Text style={styles.itemName}>{item.name}</Text>
+            <Text style={styles.itemName}>
+              {item.favourite ? '★ ' : ''}
+              {item.name}
+            </Text>
             <Text style={styles.itemMeta}>
               {item.complexity}
               {item.prepTimeMinutes != null || item.cookTimeMinutes != null
                 ? ` · ${(item.prepTimeMinutes ?? 0) + (item.cookTimeMinutes ?? 0)} min`
                 : ''}
-              {item.ingredients.length ? ` · ${item.ingredients.length} ingredients` : ''}
+              {item.availability.totalCount > 0
+                ? ` · ${item.availability.availableCount}/${item.availability.totalCount} in pantry`
+                : ''}
+              {item.availability.makeable ? ' · ✓ makeable' : ''}
             </Text>
             {item.tags.length ? <Text style={styles.itemTags}>{item.tags.join(' · ')}</Text> : null}
+            <View style={styles.itemActions}>
+              <Text style={styles.link} onPress={() => toggleFavourite(item)}>
+                {item.favourite ? 'Unfavourite' : 'Favourite'}
+              </Text>
+              <Text style={styles.link} onPress={() => markCooked(item)}>
+                Cooked
+              </Text>
+              <Text style={styles.link} onPress={() => editRecipe(item)}>
+                Edit
+              </Text>
+              <Text style={[styles.link, styles.linkDanger]} onPress={() => remove(item.recipeId)}>
+                Delete
+              </Text>
+            </View>
           </View>
-          <Button title="Edit" onPress={() => editRecipe(item)} />
-          <Button title="Delete" color="#b00020" onPress={() => remove(item.recipeId)} />
         </View>
       )}
       ListEmptyComponent={<Text style={styles.empty}>No recipes yet.</Text>}
@@ -354,6 +435,9 @@ const styles = StyleSheet.create({
   itemName: { fontSize: 16, fontWeight: '500' },
   itemMeta: { fontSize: 13, color: '#666' },
   itemTags: { fontSize: 12, color: '#2a6' },
+  itemActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 16, marginTop: 6 },
+  link: { fontSize: 14, color: '#2a6', fontWeight: '500' },
+  linkDanger: { color: '#b00020' },
   empty: { textAlign: 'center', color: '#888', paddingVertical: 24 },
   error: { color: '#b00020' },
 });
