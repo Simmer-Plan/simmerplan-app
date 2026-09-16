@@ -12,6 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-export const handler = async (_event: unknown): Promise<unknown> => {
-  throw new Error('Not implemented');
-};
+// Recipe Lambda (SIM-11): serves the recipe tRPC router over API Gateway HTTP
+// API route /recipes/{proxy+}, behind the Lambda authorizer.
+
+import { awsLambdaRequestHandler } from '@trpc/server/adapters/aws-lambda';
+import { recipeRouter } from '../trpc/routers/recipe';
+import { createContext } from '../trpc/context';
+
+export const handler = awsLambdaRequestHandler({
+  router: recipeRouter,
+  createContext,
+});

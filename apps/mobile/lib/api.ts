@@ -22,7 +22,12 @@
 
 import * as SecureStore from 'expo-secure-store';
 import { createTRPCClient, httpLink } from '@trpc/client';
-import type { AuthRouter, HouseholdRouter, PantryRouter } from '@simmerplan/api/router';
+import type {
+  AuthRouter,
+  HouseholdRouter,
+  PantryRouter,
+  RecipeRouter,
+} from '@simmerplan/api/router';
 
 const BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? '';
 
@@ -65,8 +70,13 @@ const pantryClient = createTRPCClient<PantryRouter>({
   links: [httpLink({ url: `${BASE_URL}/pantry`, fetch: authedFetch })],
 });
 
+const recipeClient = createTRPCClient<RecipeRouter>({
+  links: [httpLink({ url: `${BASE_URL}/recipes`, fetch: authedFetch })],
+});
+
 export const api = {
   auth: authClient,
   household: householdClient,
   pantry: pantryClient,
+  recipes: recipeClient,
 };

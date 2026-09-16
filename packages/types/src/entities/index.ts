@@ -88,3 +88,32 @@ export interface PantryItemRecord {
   createdAt: string;
   updatedAt: string;
 }
+
+// --- Recipes (SIM-11) -------------------------------------------------------
+
+export type RecipeComplexity = 'simple' | 'moderate' | 'complex';
+
+export interface RecipeIngredient {
+  name: string;
+  quantity: number | null;
+  unit: QuantityUnit | null;
+  /** Optional link to a pantry item this ingredient corresponds to. */
+  pantryItemId: string | null;
+}
+
+export interface RecipeRecord {
+  recipeId: string;
+  householdId: string;
+  name: string;
+  description: string;
+  photoUrl: string | null;
+  ingredients: RecipeIngredient[];
+  /** Ordered step-by-step instructions. */
+  instructions: string[];
+  prepTimeMinutes: number | null;
+  cookTimeMinutes: number | null;
+  complexity: RecipeComplexity;
+  tags: string[];
+  createdAt: string;
+  updatedAt: string;
+}
