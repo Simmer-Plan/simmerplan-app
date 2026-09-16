@@ -5,10 +5,20 @@
   "build": {
     "development": {
       "developmentClient": true,
-      "distribution": "internal"
+      "distribution": "internal",
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://fho90cnp8c.execute-api.ca-central-1.amazonaws.com",
+        "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "1093708328490-vjc9dlp2ik969un7dk0mc1goe1mc89b8.apps.googleusercontent.com",
+        "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID": "1093708328490-evl9sb2fotn9eu6ujovhafvun09g3pi6.apps.googleusercontent.com"
+      }
     },
     "preview": {
-      "distribution": "internal"
+      "distribution": "internal",
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://fho90cnp8c.execute-api.ca-central-1.amazonaws.com",
+        "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "1093708328490-vjc9dlp2ik969un7dk0mc1goe1mc89b8.apps.googleusercontent.com",
+        "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID": "1093708328490-evl9sb2fotn9eu6ujovhafvun09g3pi6.apps.googleusercontent.com"
+      }
     },
     "production": {}
   },
