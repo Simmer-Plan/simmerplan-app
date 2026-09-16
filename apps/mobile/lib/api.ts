@@ -24,6 +24,7 @@ import * as SecureStore from 'expo-secure-store';
 import { createTRPCClient, httpLink } from '@trpc/client';
 import type {
   AuthRouter,
+  GroceryRouter,
   HouseholdRouter,
   MealplanRouter,
   PantryRouter,
@@ -84,6 +85,10 @@ const mealplanClient = createTRPCClient<MealplanRouter>({
   links: [httpLink({ url: `${BASE_URL}/mealplans`, fetch: authedFetch })],
 });
 
+const groceryClient = createTRPCClient<GroceryRouter>({
+  links: [httpLink({ url: `${BASE_URL}/grocery`, fetch: authedFetch })],
+});
+
 export const api = {
   auth: authClient,
   household: householdClient,
@@ -91,4 +96,5 @@ export const api = {
   recipes: recipeClient,
   profile: profileClient,
   mealplans: mealplanClient,
+  grocery: groceryClient,
 };

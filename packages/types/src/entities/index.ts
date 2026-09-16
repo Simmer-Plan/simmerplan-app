@@ -185,3 +185,21 @@ export interface MealPlanRecord {
   createdAt: string;
   updatedAt: string;
 }
+
+// --- Shopping list (SIM-17) -------------------------------------------------
+
+export type StoreSection = 'produce' | 'dairy' | 'meat' | 'bakery' | 'frozen' | 'pantry' | 'other';
+
+export interface GroceryItemRecord {
+  groceryItemId: string;
+  householdId: string;
+  name: string;
+  quantity: number | null;
+  unit: QuantityUnit | null;
+  section: StoreSection;
+  checked: boolean;
+  /** 'auto' items are regenerated from the meal plan; 'manual' are user-added. */
+  source: 'auto' | 'manual';
+  createdAt: string;
+  updatedAt: string;
+}
