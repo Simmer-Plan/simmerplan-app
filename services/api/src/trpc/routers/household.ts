@@ -29,6 +29,7 @@ import type {
   InviteRecord,
   UserRecord,
 } from '@simmerplan/types';
+import { DEFAULT_DIETARY_PREFERENCES } from '@simmerplan/types';
 import { docClient, TABLE_NAME } from '../../lib/dynamo';
 import { refreshTokens, setHouseholdClaim } from '../../lib/cognito';
 import { getSecret } from '../../lib/secrets';
@@ -252,6 +253,7 @@ export const householdRouter = router({
         email: u.email,
         photoUrl: u.photoUrl,
         role: u.role,
+        dietary: { ...DEFAULT_DIETARY_PREFERENCES, ...(u.dietary ?? {}) },
       })),
     };
   }),
