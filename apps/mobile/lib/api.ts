@@ -26,6 +26,7 @@ import type {
   AuthRouter,
   HouseholdRouter,
   PantryRouter,
+  ProfileRouter,
   RecipeRouter,
 } from '@simmerplan/api/router';
 
@@ -74,9 +75,14 @@ const recipeClient = createTRPCClient<RecipeRouter>({
   links: [httpLink({ url: `${BASE_URL}/recipes`, fetch: authedFetch })],
 });
 
+const profileClient = createTRPCClient<ProfileRouter>({
+  links: [httpLink({ url: `${BASE_URL}/profile`, fetch: authedFetch })],
+});
+
 export const api = {
   auth: authClient,
   household: householdClient,
   pantry: pantryClient,
   recipes: recipeClient,
+  profile: profileClient,
 };
