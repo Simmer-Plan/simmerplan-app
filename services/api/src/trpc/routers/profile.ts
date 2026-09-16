@@ -19,8 +19,8 @@
 
 import { z } from 'zod';
 import { TRPCError } from '@trpc/server';
-import { GetCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
-import type { ProfileResponse, UserRecord } from '@simmerplan/types';
+import { DeleteCommand, GetCommand, PutCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
+import type { ProfileResponse, PushDeviceRecord, UserRecord } from '@simmerplan/types';
 import { DEFAULT_DIETARY_PREFERENCES, DEFAULT_USER_PREFERENCES } from '@simmerplan/types';
 import { docClient, TABLE_NAME } from '../../lib/dynamo';
 import { protectedProcedure, router } from '../trpc';
@@ -123,6 +123,35 @@ export const profileRouter = router({
         throw err;
       });
       return toProfile(result.Attributes as UserRecord);
+    }),
+
+  // Register this device's Expo push token for notifications (SIM-22). Tokens
+  // live at USER#<userId> / PUSHTOKEN#<token> so a user can have several devices.
+  registerDevice: protectedProcedure
+    .input(z.object({ pushToken: z.string().trim().min(1).max(256), platform: z.enum(['ios', 'android']).default('android') }))
+    .mutation(async ({ ctx, input }): Promise<{ registered: true }> => {
+      const record: PushDeviceRecord & { PK: string; SK: string } = {
+        PK: `USER#${ctx.userId}`,
+        SK: `PUSHTOKEN#${input.pushToken}`,
+        userId: ctx.userId,
+        pushToken: input.pushToken,
+        platform: input.platform,
+        createdAt: new Date().toISOString(),
+      };
+      await docClient.send(new PutCommand({ TableName: TABLE_NAME, Item: record }));
+      return { registered: true };
+    }),
+
+  unregisterDevice: protectedProcedure
+    .input(z.object({ pushToken: z.string().trim().min(1) }))
+    .mutation(async ({ ctx, input }): Promise<{ unregistered: true }> => {
+      await docClient.send(
+        new DeleteCommand({
+          TableName: TABLE_NAME,
+          Key: { PK: `USER#${ctx.userId}`, SK: `PUSHTOKEN#${input.pushToken}` },
+        }),
+      );
+      return { unregistered: true };
     }),
 });
 
