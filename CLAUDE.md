@@ -84,16 +84,31 @@ pnpm format                                     # Prettier all
 | Handler | API Gateway Route | Notes |
 |---|---|---|
 | `auth-authorizer.ts` | (authorizer) | Verifies JWT; extracts `householdId` |
-| `auth-handler.ts` | `/auth/{proxy+}` | Cognito-backed auth endpoints |
-| `household-handler.ts` | `/household/{proxy+}` | Household management + invites |
-| `sync-handler.ts` | `/sync/{proxy+}` | Delta sync: `/diffs`, `/hash`, `/full` |
-| `pantry-handler.ts` | `/pantry/{proxy+}` | Pantry CRUD |
-| `recipe-handler.ts` | `/recipes/{proxy+}` | Recipe CRUD |
-| `mealplan-handler.ts` | `/mealplans/{proxy+}` | Meal plan + Bedrock suggestions |
-| `grocery-handler.ts` | `/grocery/{proxy+}` | Grocery list |
-| `schedule-handler.ts` | `/schedule/{proxy+}` | Per-user weekly schedule |
+| `auth-handler.ts` | `/auth/{proxy+}` | Cognito-backed auth endpoints (public) |
+| `household-handler.ts` | `/household/{proxy+}` | Household management + invites (gated) |
+| `index.ts` | `ANY /{proxy+}` (gated) + `GET /health` (public) | **The application Lambda** (`simmerplan-api-<env>`, handler `index.handler`). Serves the combined `appRouter` — see below. Also answers `/health` directly. |
+| `sync-handler.ts` | `/sync/{proxy+}` | Delta sync: `/diffs`, `/hash`, `/full` — still a stub |
 | `webhook-handler.ts` | `/webhooks/{proxy+}` | Google Home — no JWT auth |
 | `hash-recompute-job.ts` | (EventBridge) | Nightly cron at 02:00 UTC |
+
+### The application router (SIM-41)
+
+Every authorizer-gated domain router is mounted on `appRouter`
+(`src/trpc/routers/app.ts`) and served by the single application Lambda behind the
+gated catch-all, so procedures are **namespaced**:
+
+| Namespace | Router | Example call |
+|---|---|---|
+| `pantry` | pantry CRUD + storage locations + barcode lookup | `GET /pantry.listItems` |
+| `recipes` | recipe CRUD, availability search, URL import | `GET /recipes.search` |
+| `mealplans` | weekly plan + Bedrock suggestions | `POST /mealplans.suggest` |
+| `profile` | profile, notification prefs, push devices | `GET /profile.get` |
+| `grocery` | shopping list | `POST /grocery.generateFromWeek` |
+| `schedule` | weekly schedule + calendar sync | `POST /schedule.setDay` |
+
+Adding a router: create it under `src/trpc/routers/`, mount it on `appRouter`, and
+it is reachable immediately — **no new Lambda or API Gateway route required**.
+`auth` and `household` are deliberately separate (public vs. gated split).
 
 Lambda config: `nodejs22.x`, `arm64`, 256 MB, 30s timeout, 5 concurrent (sandbox) / 10 (prod).
 

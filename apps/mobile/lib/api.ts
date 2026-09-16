@@ -22,16 +22,7 @@
 
 import * as SecureStore from 'expo-secure-store';
 import { createTRPCClient, httpLink } from '@trpc/client';
-import type {
-  AuthRouter,
-  GroceryRouter,
-  HouseholdRouter,
-  MealplanRouter,
-  PantryRouter,
-  ProfileRouter,
-  RecipeRouter,
-  ScheduleRouter,
-} from '@simmerplan/api/router';
+import type { AppRouter, AuthRouter, HouseholdRouter } from '@simmerplan/api/router';
 
 const BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? '';
 
@@ -70,37 +61,20 @@ const householdClient = createTRPCClient<HouseholdRouter>({
   links: [httpLink({ url: `${BASE_URL}/household`, fetch: authedFetch })],
 });
 
-const pantryClient = createTRPCClient<PantryRouter>({
-  links: [httpLink({ url: `${BASE_URL}/pantry`, fetch: authedFetch })],
-});
-
-const recipeClient = createTRPCClient<RecipeRouter>({
-  links: [httpLink({ url: `${BASE_URL}/recipes`, fetch: authedFetch })],
-});
-
-const profileClient = createTRPCClient<ProfileRouter>({
-  links: [httpLink({ url: `${BASE_URL}/profile`, fetch: authedFetch })],
-});
-
-const mealplanClient = createTRPCClient<MealplanRouter>({
-  links: [httpLink({ url: `${BASE_URL}/mealplans`, fetch: authedFetch })],
-});
-
-const groceryClient = createTRPCClient<GroceryRouter>({
-  links: [httpLink({ url: `${BASE_URL}/grocery`, fetch: authedFetch })],
-});
-
-const scheduleClient = createTRPCClient<ScheduleRouter>({
-  links: [httpLink({ url: `${BASE_URL}/schedule`, fetch: authedFetch })],
+// One client for every authorizer-gated domain router (SIM-41): they are served
+// by a single Lambda behind the gated catch-all route, so procedures are
+// namespaced (api.pantry.listItems -> GET /pantry.listItems).
+const appClient = createTRPCClient<AppRouter>({
+  links: [httpLink({ url: BASE_URL, fetch: authedFetch })],
 });
 
 export const api = {
   auth: authClient,
   household: householdClient,
-  pantry: pantryClient,
-  recipes: recipeClient,
-  profile: profileClient,
-  mealplans: mealplanClient,
-  grocery: groceryClient,
-  schedule: scheduleClient,
+  pantry: appClient.pantry,
+  recipes: appClient.recipes,
+  mealplans: appClient.mealplans,
+  profile: appClient.profile,
+  grocery: appClient.grocery,
+  schedule: appClient.schedule,
 };
